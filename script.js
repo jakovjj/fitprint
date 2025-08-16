@@ -12,6 +12,7 @@ class FitPrint {
         const exportBtn = document.getElementById('exportPDF');
         const themeToggle = document.getElementById('themeToggle');
         const paperSize = document.getElementById('paperSize');
+        const fileUpload = document.querySelector('.file-upload');
         
         // Paper setting inputs for real-time validation
         const paperWidth = document.getElementById('paperWidth');
@@ -23,6 +24,13 @@ class FitPrint {
         exportBtn.addEventListener('click', () => this.exportToPDF());
         themeToggle.addEventListener('click', () => this.toggleTheme());
         paperSize.addEventListener('change', (e) => this.handlePaperSizeChange(e));
+        
+        // Drag & Drop events
+        fileUpload.addEventListener('dragover', (e) => this.handleDragOver(e));
+        fileUpload.addEventListener('dragenter', (e) => this.handleDragEnter(e));
+        fileUpload.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        fileUpload.addEventListener('drop', (e) => this.handleDrop(e));
+        fileUpload.addEventListener('click', () => imageInput.click());
         
         // Add real-time validation when paper settings change
         paperWidth.addEventListener('input', () => {
@@ -111,49 +119,101 @@ class FitPrint {
         paperSizeSelect.value = matchingSize;
     }
 
+    handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    handleDragEnter(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.add('drag-over');
+    }
+
+    handleDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Only remove drag-over class if we're actually leaving the drop zone
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = event.clientX;
+        const y = event.clientY;
+        
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+            event.currentTarget.classList.remove('drag-over');
+        }
+    }
+
+    handleDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.remove('drag-over');
+        
+        const files = Array.from(event.dataTransfer.files);
+        if (files.length > 0) {
+            this.processFiles(files);
+        }
+    }
+
+    processFiles(files) {
+        const imageFiles = files.filter(file => file.type.startsWith('image/'));
+        
+        if (imageFiles.length === 0) {
+            alert('Please drop image files only (JPG, PNG, GIF, WEBP)');
+            return;
+        }
+
+        if (imageFiles.length !== files.length) {
+            alert(`${files.length - imageFiles.length} non-image files were ignored. Only image files are supported.`);
+        }
+
+        const preview = document.getElementById('imagePreview');
+        const imagesList = document.getElementById('imagesList');
+
+        imageFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Create an image element to get original dimensions
+                const img = new Image();
+                img.onload = () => {
+                    // Calculate aspect ratio and set default size
+                    const aspectRatio = img.width / img.height;
+                    const defaultWidth = 50; // default width in mm
+                    const defaultHeight = defaultWidth / aspectRatio;
+                    
+                    const imageData = {
+                        id: Date.now() + index + Math.random(),
+                        file: file,
+                        dataUrl: e.target.result,
+                        width: defaultWidth,
+                        height: defaultHeight,
+                        copies: 1,
+                        name: file.name,
+                        originalWidth: img.width,
+                        originalHeight: img.height,
+                        aspectRatio: aspectRatio
+                    };
+
+                    this.images.push(imageData);
+                    this.renderImagePreview(imageData);
+                    this.renderImageConfig(imageData);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
     validateAllImages() {
         this.images.forEach(image => this.validateImageInRealTime(image));
     }
 
     handleImageUpload(event) {
         const files = Array.from(event.target.files);
-        const preview = document.getElementById('imagePreview');
-        const imagesList = document.getElementById('imagesList');
-
-        files.forEach((file, index) => {
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    // Create an image element to get original dimensions
-                    const img = new Image();
-                    img.onload = () => {
-                        // Calculate aspect ratio and set default size
-                        const aspectRatio = img.width / img.height;
-                        const defaultWidth = 50; // default width in mm
-                        const defaultHeight = defaultWidth / aspectRatio;
-                        
-                        const imageData = {
-                            id: Date.now() + index,
-                            file: file,
-                            dataUrl: e.target.result,
-                            width: defaultWidth,
-                            height: defaultHeight,
-                            copies: 1,
-                            name: file.name,
-                            originalWidth: img.width,
-                            originalHeight: img.height,
-                            aspectRatio: aspectRatio
-                        };
-
-                        this.images.push(imageData);
-                        this.renderImagePreview(imageData);
-                        this.renderImageConfig(imageData);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        this.processFiles(files);
+        
+        // Clear the input so the same file can be selected again
+        event.target.value = '';
     }
 
     renderImagePreview(imageData) {
