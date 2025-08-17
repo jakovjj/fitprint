@@ -159,22 +159,46 @@ header {
 }
 
 /* Desktop Sidebar */
-@media (min-width: 1200px) {
+@media (min-width: 1400px) {
     .sidebar {
         left: 0;
         position: fixed;
     }
     
+    .sidebar.desktop-hidden {
+        left: -300px;
+    }
+    
     .container {
-        margin-left: 320px;
-        max-width: calc(1200px - 320px);
+        margin: 0 auto; /* Keep centered */
+        max-width: 1200px;
+        padding-left: 340px; /* Account for sidebar space */
+        padding-right: 20px;
+        transition: padding-left 0.3s ease;
+    }
+    
+    /* When sidebar is hidden, reduce left padding */
+    body.sidebar-hidden .container {
+        padding-left: 20px;
+    }
+    
+    .nav-toggle {
+        display: block !important; /* Show toggle button on desktop too */
     }
 }
 
-/* Mobile Navigation */
-@media (max-width: 1199px) {
+/* Laptop/Tablet Navigation - Show toggle button for medium screens */
+@media (max-width: 1399px) {
     .nav-toggle {
         display: block !important;
+    }
+    
+    .sidebar {
+        left: -300px; /* Hidden by default on laptops */
+    }
+    
+    .container {
+        margin-left: 0; /* No automatic margin on laptops */
     }
 }
 
@@ -806,6 +830,17 @@ h2 {
     color: white;
 }
 
+.action-btn.secondary.ready {
+    background: #10b981;
+    color: white;
+    border: 2px solid #10b981;
+}
+
+.action-btn.secondary.ready:hover {
+    background: #059669;
+    border-color: #059669;
+}
+
 .action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -1125,6 +1160,117 @@ body.shift-selecting .image-config * {
 
 body.shift-selecting .select-checkbox {
     cursor: crosshair !important;
+}
+
+/* Image Modal/Lightbox Styles */
+.image-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    visibility: visible;
+    transition: all 0.3s ease;
+}
+
+.image-modal.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    cursor: pointer;
+}
+
+.modal-content {
+    position: relative;
+    max-width: 95vw;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 10001;
+}
+
+.modal-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    transition: all 0.2s ease;
+    z-index: 10002;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
+}
+
+.modal-image {
+    max-width: 100%;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    cursor: zoom-out;
+}
+
+.modal-info {
+    margin-top: 15px;
+    text-align: center;
+    color: white;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.image-name {
+    font-weight: bold;
+}
+
+.image-size {
+    opacity: 0.8;
+    font-size: 12px;
+}
+
+/* Make images clickable */
+.preview-item img,
+.image-config img {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preview-item img:hover,
+.image-config img:hover {
+    opacity: 0.8;
+    transform: scale(1.02);
 }
 
 .container {

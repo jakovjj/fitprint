@@ -8,6 +8,7 @@ class FitPrint {
         this.initializeTheme();
         this.initializeBulkEdit();
         this.initializeNavigation();
+        this.initializeImageModal();
     }
 
     initializeBulkEdit() {
@@ -29,11 +30,20 @@ class FitPrint {
         const sidebarOverlay = document.getElementById('sidebarOverlay');
         const navLinks = document.querySelectorAll('.nav-link');
 
-        // Toggle sidebar on mobile
+        // Toggle sidebar functionality
         if (navToggle) {
             navToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
-                sidebarOverlay.classList.toggle('active');
+                const isDesktop = window.innerWidth >= 1400;
+                
+                if (isDesktop) {
+                    // On desktop, toggle sidebar and body class for styling
+                    sidebar.classList.toggle('desktop-hidden');
+                    document.body.classList.toggle('sidebar-hidden');
+                } else {
+                    // On mobile/laptop, use overlay system
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('active');
+                }
             });
         }
 
@@ -44,6 +54,21 @@ class FitPrint {
                 sidebarOverlay.classList.remove('active');
             });
         }
+
+        // Handle window resize to reset sidebar behavior
+        window.addEventListener('resize', () => {
+            const isDesktop = window.innerWidth >= 1400;
+            
+            if (isDesktop) {
+                // Reset mobile classes on desktop
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('active');
+            } else {
+                // Reset desktop classes on mobile/laptop
+                sidebar.classList.remove('desktop-hidden');
+                document.body.classList.remove('sidebar-hidden');
+            }
+        });
 
         // Navigation link clicks
         navLinks.forEach(link => {
@@ -104,10 +129,62 @@ class FitPrint {
         sections.forEach(section => observer.observe(section));
     }
 
+    initializeImageModal() {
+        const modal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const modalImageName = document.getElementById('modalImageName');
+        const modalImageSize = document.getElementById('modalImageSize');
+        const modalClose = document.querySelector('.modal-close');
+        const modalBackdrop = document.querySelector('.modal-backdrop');
+
+        // Close modal function
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        };
+
+        // Open modal function
+        this.openImageModal = (imageSrc, imageName, imageData) => {
+            modalImage.src = imageSrc;
+            modalImageName.textContent = imageName;
+            
+            // Show image dimensions if available
+            if (imageData) {
+                modalImageSize.textContent = `${imageData.originalWidth} × ${imageData.originalHeight} pixels`;
+            } else {
+                modalImageSize.textContent = '';
+            }
+            
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        };
+
+        // Event listeners
+        if (modalClose) {
+            modalClose.addEventListener('click', closeModal);
+        }
+
+        if (modalBackdrop) {
+            modalBackdrop.addEventListener('click', closeModal);
+        }
+
+        if (modalImage) {
+            modalImage.addEventListener('click', closeModal);
+        }
+
+        // ESC key to close
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
+    }
+
     initializeEventListeners() {
         const imageInput = document.getElementById('imageInput');
         const generateBtn = document.getElementById('generateLayout');
         const exportBtn = document.getElementById('exportPDF');
+        const exportWordBtn = document.getElementById('exportWord');
         const themeToggle = document.getElementById('themeToggle');
         const paperSize = document.getElementById('paperSize');
         const paperOrientation = document.getElementById('paperOrientation');
@@ -120,7 +197,8 @@ class FitPrint {
 
         imageInput.addEventListener('change', (e) => this.handleImageUpload(e));
         generateBtn.addEventListener('click', () => this.generateLayoutWithLoading());
-        exportBtn.addEventListener('click', () => this.exportToPDF());
+        exportBtn.addEventListener('click', () => this.exportToPDFWithLoading());
+        exportWordBtn.addEventListener('click', () => this.exportToWordWithLoading());
         themeToggle.addEventListener('click', () => this.toggleTheme());
         
         // Event delegation for checkbox clicks to properly capture shift-click
@@ -251,6 +329,10 @@ class FitPrint {
 
     // Generate layout with loading screen
     async generateLayoutWithLoading() {
+        // Reset export button states
+        document.getElementById('exportPDF').classList.remove('ready');
+        document.getElementById('exportWord').classList.remove('ready');
+        
         this.showLoading('Generating optimal layout...');
         
         // Small delay to ensure loading screen shows
@@ -459,7 +541,6 @@ class FitPrint {
                     };
 
                     this.images.push(imageData);
-                    this.renderImagePreview(imageData);
                     this.renderImageConfig(imageData);
                 };
                 img.src = e.target.result;
@@ -483,17 +564,6 @@ class FitPrint {
     // Add test images for debugging
     // Removed addTestImages function - no longer needed
 
-    renderImagePreview(imageData) {
-        const preview = document.getElementById('imagePreview');
-        const item = document.createElement('div');
-        item.className = 'preview-item';
-        item.innerHTML = `
-            <img src="${imageData.dataUrl}" alt="${imageData.name}">
-            <button class="remove-btn" onclick="fitPrint.removeImage(${imageData.id})">×</button>
-        `;
-        preview.appendChild(item);
-    }
-
     renderImageConfig(imageData) {
         const list = document.getElementById('imagesList');
         const config = document.createElement('div');
@@ -501,7 +571,7 @@ class FitPrint {
         config.dataset.id = imageData.id;
         config.innerHTML = `
             <input type="checkbox" class="select-checkbox" data-image-id="${imageData.id}">
-            <img src="${imageData.dataUrl}" alt="${imageData.name}">
+            <img src="${imageData.dataUrl}" alt="${imageData.name}" data-image-id="${imageData.id}">
             <div class="config-inputs">
                 <div>
                     <label>Width (mm):</label>
@@ -526,8 +596,24 @@ class FitPrint {
                            onchange="fitPrint.updateImageSize(${imageData.id}, 'copies', this.value)">
                 </div>
             </div>
-            <button class="remove-btn" onclick="fitPrint.removeImage(${imageData.id})">✕ Remove</button>
+            <button class="remove-btn" data-id="${imageData.id}">✕ Remove</button>
         `;
+        
+        // Add click listener to the image
+        const img = config.querySelector('img');
+        img.addEventListener('click', () => {
+            this.openImageModal(imageData.dataUrl, imageData.name, {
+                originalWidth: imageData.originalWidth,
+                originalHeight: imageData.originalHeight
+            });
+        });
+        
+        // Add click listener to the remove button
+        const removeBtn = config.querySelector('.remove-btn');
+        removeBtn.addEventListener('click', () => {
+            this.removeImage(imageData.id);
+        });
+        
         list.appendChild(config);
     }
 
@@ -611,18 +697,12 @@ class FitPrint {
         // Remove from images array
         this.images = this.images.filter(img => img.id != id);
         
-        // Instead of clearing everything, just remove the specific elements
+        // Remove the config element
         const configToRemove = document.querySelector(`[data-id="${id}"]`);
-        const previewToRemove = document.querySelector(`.preview-item img[src*="${id}"]`)?.parentElement;
         
         if (configToRemove) {
             configToRemove.remove();
             console.log('🗑️ Removed config element');
-        }
-        
-        if (previewToRemove) {
-            previewToRemove.remove();
-            console.log('🗑️ Removed preview element');
         }
         
         // Restore selection state for remaining images
@@ -962,17 +1042,25 @@ class FitPrint {
             const image = this.images.find(img => img.id == id); // Use == for loose comparison
             
             if (image) {
+                const lockBtn = document.getElementById('lockRatio');
+                const isRatioLocked = lockBtn && lockBtn.classList.contains('active');
+                
                 if (bulkWidth) {
                     image.width = parseFloat(bulkWidth);
-                    if (this.ratioLocked && bulkHeight) {
-                        image.height = parseFloat(bulkHeight);
-                    } else if (this.ratioLocked) {
+                    if (isRatioLocked) {
+                        // If ratio is locked, adjust height automatically
                         image.height = image.width / image.aspectRatio;
                     }
                 }
-                if (bulkHeight && !this.ratioLocked) {
+                
+                if (bulkHeight) {
                     image.height = parseFloat(bulkHeight);
+                    if (isRatioLocked) {
+                        // If ratio is locked, adjust width automatically
+                        image.width = image.height * image.aspectRatio;
+                    }
                 }
+                
                 if (bulkCopies) {
                     image.copies = parseInt(bulkCopies);
                 }
@@ -1102,7 +1190,10 @@ class FitPrint {
             this.renderLayoutPreview(finalWidth, finalHeight, outerMargin);
             this.updateLayoutStats();
             
-            document.getElementById('exportPDF').disabled = false;
+            // Mark export buttons as ready
+            document.getElementById('exportPDF').classList.add('ready');
+            document.getElementById('exportWord').classList.add('ready');
+            
             console.log('Layout generation completed successfully');
         } catch (error) {
             console.error('Error during layout generation:', error);
@@ -2295,54 +2386,256 @@ class FitPrint {
         `;
     }
 
-    async exportToPDF() {
+    async exportToPDFWithLoading() {
         if (this.layout.length === 0) {
             alert('Please generate a layout first!');
             return;
         }
 
-        const { jsPDF } = window.jspdf;
-        const paperWidth = parseFloat(document.getElementById('paperWidth').value);
-        const paperHeight = parseFloat(document.getElementById('paperHeight').value);
-        const outerMargin = parseFloat(document.getElementById('outerMargin').value);
+        this.showLoading('Preparing PDF export...');
+        
+        try {
+            await this.exportToPDF();
+        } finally {
+            this.hideLoading();
+        }
+    }
 
-        // Convert mm to points (1mm = 2.834645669 points)
-        const mmToPt = 2.834645669;
-        const pdf = new jsPDF({
-            orientation: paperWidth > paperHeight ? 'landscape' : 'portrait',
-            unit: 'mm',
-            format: [paperWidth, paperHeight]
-        });
-
-        for (let pageIndex = 0; pageIndex < this.layout.length; pageIndex++) {
-            if (pageIndex > 0) {
-                pdf.addPage();
-            }
-
-            const page = this.layout[pageIndex];
-
-            for (const img of page.images) {
-                try {
-                    // Load image and add to PDF
-                    const imageData = await this.loadImageForPDF(img);
-                    
-                    pdf.addImage(
-                        imageData,
-                        'JPEG',
-                        img.x + outerMargin,  // Add outer margin to position
-                        img.y + outerMargin,  // Add outer margin to position
-                        img.width,
-                        img.height,
-                        undefined,
-                        'FAST'
-                    );
-                } catch (error) {
-                    console.error('Error adding image to PDF:', error);
-                }
-            }
+    async exportToWordWithLoading() {
+        if (this.layout.length === 0) {
+            alert('Please generate a layout first!');
+            return;
         }
 
-        pdf.save('fitprint-layout.pdf');
+        this.showLoading('Preparing Word export...');
+        
+        try {
+            await this.exportToWord();
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async exportToPDF() {
+        try {
+            console.log('🔄 Starting PDF export...');
+            
+            console.log('📋 Layout data:', this.layout);
+
+            const { jsPDF } = window.jspdf;
+            if (!jsPDF) {
+                console.error('❌ jsPDF library not loaded');
+                alert('PDF library not loaded. Please refresh the page.');
+                return;
+            }
+
+            console.log('✅ jsPDF library loaded');
+            
+            const paperWidth = parseFloat(document.getElementById('paperWidth').value);
+            const paperHeight = parseFloat(document.getElementById('paperHeight').value);
+            const outerMargin = parseFloat(document.getElementById('outerMargin').value);
+
+            console.log('📏 Paper settings:', { paperWidth, paperHeight, outerMargin });
+
+            // Convert mm to points (1mm = 2.834645669 points)
+            const mmToPt = 2.834645669;
+            const pdf = new jsPDF({
+                orientation: paperWidth > paperHeight ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: [paperWidth, paperHeight]
+            });
+
+            console.log('📄 PDF document created');
+
+            for (let pageIndex = 0; pageIndex < this.layout.length; pageIndex++) {
+                console.log(`🔄 Processing page ${pageIndex + 1}/${this.layout.length}`);
+                
+                // Update loading message
+                const loadingText = document.querySelector('.loading-content p');
+                if (loadingText) {
+                    loadingText.textContent = `Preparing PDF... Page ${pageIndex + 1}/${this.layout.length}`;
+                }
+                
+                if (pageIndex > 0) {
+                    pdf.addPage();
+                }
+
+                const page = this.layout[pageIndex];
+
+                for (const img of page.images) {
+                    try {
+                        console.log('🖼️ Processing image:', img.originalName);
+                        
+                        // Load image and add to PDF
+                        const imageData = await this.loadImageForPDF(img);
+                        
+                        pdf.addImage(
+                            imageData,
+                            'JPEG',
+                            img.x + outerMargin,  // Add outer margin to position
+                            img.y + outerMargin,  // Add outer margin to position
+                            img.width,
+                            img.height,
+                            undefined,
+                            'FAST'
+                        );
+                        
+                        console.log('✅ Image added to PDF');
+                    } catch (error) {
+                        console.error('❌ Error adding image to PDF:', error);
+                    }
+                }
+            }
+
+            console.log('💾 Saving PDF...');
+            pdf.save('fitprint-layout.pdf');
+            console.log('✅ PDF export completed successfully');
+            
+        } catch (error) {
+            console.error('❌ PDF Export Error:', error);
+            alert('Error exporting to PDF: ' + error.message);
+        }
+    }
+
+    async exportToWord() {
+        try {
+            const { Document, Packer, Paragraph, ImageRun, PageBreak } = docx;
+            const paperWidth = parseFloat(document.getElementById('paperWidth').value);
+            const paperHeight = parseFloat(document.getElementById('paperHeight').value);
+            
+            // Convert mm to twips (1mm = 56.692913386 twips)
+            const mmToTwips = 56.692913386;
+            
+            const doc = new Document({
+                sections: []
+            });
+
+            for (let pageIndex = 0; pageIndex < this.layout.length; pageIndex++) {
+                const page = this.layout[pageIndex];
+                const children = [];
+
+                // Update loading message
+                const loadingText = document.querySelector('.loading-content p');
+                if (loadingText) {
+                    loadingText.textContent = `Preparing Word document... Page ${pageIndex + 1}/${this.layout.length}`;
+                }
+
+                // Add page title
+                children.push(new Paragraph({
+                    text: `Page ${pageIndex + 1}`,
+                    heading: "Heading1"
+                }));
+
+                // Process images on this page
+                for (const img of page.images) {
+                    try {
+                        // Convert image to proper format for Word
+                        const imageBuffer = await this.convertImageToBuffer(img);
+                        
+                        children.push(new Paragraph({
+                            children: [
+                                new ImageRun({
+                                    data: imageBuffer,
+                                    transformation: {
+                                        width: Math.round(img.width * mmToTwips),
+                                        height: Math.round(img.height * mmToTwips),
+                                    },
+                                }),
+                            ],
+                        }));
+                    } catch (error) {
+                        console.error('Error adding image to Word document:', error);
+                        // Add error placeholder
+                        children.push(new Paragraph({
+                            text: `[Image Error: ${img.originalName || 'Unknown'}]`
+                        }));
+                    }
+                }
+
+                // Add page break except for last page
+                if (pageIndex < this.layout.length - 1) {
+                    children.push(new Paragraph({
+                        children: [new PageBreak()]
+                    }));
+                }
+
+                doc.addSection({
+                    properties: {
+                        page: {
+                            size: {
+                                width: Math.round(paperWidth * mmToTwips),
+                                height: Math.round(paperHeight * mmToTwips),
+                            },
+                        },
+                    },
+                    children: children
+                });
+            }
+
+            // Generate and save the document
+            const buffer = await Packer.toBuffer(doc);
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            saveAs(blob, 'fitprint-layout.docx');
+            
+        } catch (error) {
+            console.error('Error exporting to Word:', error);
+            alert('Error exporting to Word. Please try again.');
+        }
+    }
+
+    convertImageToBuffer(imgData) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Get quality setting
+                const quality = parseFloat(document.getElementById('imageQuality').value);
+                
+                // Determine if original image has transparency
+                const hasTransparency = imgData.dataUrl.startsWith('data:image/png');
+                
+                if (imgData.rotated) {
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                    
+                    // Set white background for non-transparent images
+                    if (!hasTransparency) {
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
+                    ctx.translate(canvas.width / 2, canvas.height / 2);
+                    ctx.rotate(Math.PI / 2);
+                    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                } else {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    // Set white background for non-transparent images
+                    if (!hasTransparency) {
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
+                    ctx.drawImage(img, 0, 0);
+                }
+                
+                // Convert canvas to blob - use PNG for transparency, JPEG for others
+                const format = hasTransparency ? 'image/png' : 'image/jpeg';
+                const qualityParam = hasTransparency ? undefined : quality;
+                
+                canvas.toBlob((blob) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(blob);
+                }, format, qualityParam);
+            };
+            img.onerror = reject;
+            img.src = imgData.dataUrl;
+        });
     }
 
     loadImageForPDF(imgData) {
@@ -2352,19 +2645,44 @@ class FitPrint {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
+                // Get quality setting
+                const quality = parseFloat(document.getElementById('imageQuality').value);
+                
+                // Determine if original image has transparency
+                const hasTransparency = imgData.dataUrl.startsWith('data:image/png');
+                
                 if (imgData.rotated) {
                     canvas.width = img.height;
                     canvas.height = img.width;
+                    
+                    // Set white background for non-transparent images, or keep transparent for PNG
+                    if (!hasTransparency) {
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
                     ctx.translate(canvas.width / 2, canvas.height / 2);
                     ctx.rotate(Math.PI / 2);
                     ctx.drawImage(img, -img.width / 2, -img.height / 2);
                 } else {
                     canvas.width = img.width;
                     canvas.height = img.height;
+                    
+                    // Set white background for non-transparent images, or keep transparent for PNG
+                    if (!hasTransparency) {
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
                     ctx.drawImage(img, 0, 0);
                 }
                 
-                resolve(canvas.toDataURL('image/jpeg', 0.8));
+                // Use PNG for transparent images, JPEG for others (with compression)
+                if (hasTransparency) {
+                    resolve(canvas.toDataURL('image/png'));
+                } else {
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                }
             };
             img.onerror = reject;
             img.src = imgData.dataUrl;

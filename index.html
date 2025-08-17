@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FitPrint - Smart Image Layout for Printing</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv///////////////////////////////////////////////////////////////////////////////////////9wmJv/cJib/////////////////////////////////////////////////////////////////////////3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/9wmJv/cJib/3CYm/AAAAAA=">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.2.2/docx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -37,8 +42,8 @@
                 <h3>Navigation</h3>
                 <ul class="nav-list">
                     <li><a href="#upload" class="nav-link" data-section="upload-section">📁 Upload Images</a></li>
-                    <li><a href="#settings" class="nav-link" data-section="settings-section">⚙️ Print Settings</a></li>
                     <li><a href="#images" class="nav-link" data-section="images-section">🖼️ Image Configuration</a></li>
+                    <li><a href="#settings" class="nav-link" data-section="settings-section">⚙️ Print Settings</a></li>
                     <li><a href="#actions" class="nav-link" data-section="actions-section">🎯 Generate Layout</a></li>
                     <li><a href="#preview" class="nav-link" data-section="preview-section">👁️ Layout Preview</a></li>
                 </ul>
@@ -62,7 +67,44 @@
                         <p class="upload-formats">Supports: JPG, PNG, GIF, WEBP</p>
                     </div>
                 </div>
-                <div id="imagePreview" class="image-preview"></div>
+            </section>
+
+            <section id="images" class="images-section">
+                <h2>🖼️ Image Configuration</h2>
+                
+                <!-- Bulk Edit Section -->
+                <div class="bulk-edit-section">
+                    <h3 onclick="fitPrint.toggleBulkEdit()" class="bulk-edit-header">
+                        📦 Bulk Edit Selected Images<span id="bulkToggleIcon" class="toggle-icon"></span>
+                    </h3>
+                    <div class="bulk-controls" id="bulkControls">
+                        <div>
+                            <button id="selectAll" class="bulk-btn">Select All</button>
+                            <button id="selectNone" class="bulk-btn">Select None</button>
+                            <button id="removeSelected" class="bulk-btn danger">Remove Selected</button>
+                        </div>
+                        <div class="bulk-inputs">
+                            <span id="selectionCount">0 images selected</span>
+                            <div class="bulk-input-group">
+                                <label>Width (mm):</label>
+                                <input type="number" id="bulkWidth" min="1" step="0.1" placeholder="Width">
+                                <button id="lockRatio" class="ratio-lock-btn active" title="Lock aspect ratio">🔒</button>
+                            </div>
+                            <div class="bulk-input-group">
+                                <label>Height (mm):</label>
+                                <input type="number" id="bulkHeight" min="1" step="0.1" placeholder="Height">
+                            </div>
+                            <div class="bulk-input-group">
+                                <label>Copies:</label>
+                                <input type="number" id="bulkCopies" min="1" placeholder="Copies">
+                            </div>
+                            <button id="applyBulkChanges" class="action-btn primary">Apply to Selected</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Images List -->
+                <div id="imagesList" class="images-list"></div>
             </section>
 
             <section id="settings" class="settings-section">
@@ -123,43 +165,18 @@
                             <label for="rotateImages" class="checkbox-label">Rotate images for better fit</label>
                         </div>
                     </div>
-                </div>
-            </section>
-
-            <section id="images" class="images-section">
-                <h2>🖼️ Image Configuration</h2>
-                
-                <!-- Bulk Edit Section -->
-                <div class="bulk-edit-section">
-                    <h3 onclick="fitPrint.toggleBulkEdit()" class="bulk-edit-header">
-                        📦 Bulk Edit Selected Images<span id="bulkToggleIcon" class="toggle-icon"></span>
-                    </h3>
-                    <div class="bulk-controls" id="bulkControls">
-                        <div>
-                            <button id="selectAll" class="bulk-btn">Select All</button>
-                            <button id="selectNone" class="bulk-btn">Select None</button>
-                            <button id="removeSelected" class="bulk-btn danger">Remove Selected</button>
-                        </div>
-                        <div class="bulk-inputs">
-                            <div class="bulk-input-group">
-                                <label>Width (mm):</label>
-                                <input type="number" id="bulkWidth" min="1" step="0.1" placeholder="Width">
-                                <button id="lockRatio" class="ratio-lock-btn active" title="Lock aspect ratio">🔒</button>
-                            </div>
-                            <div class="bulk-input-group">
-                                <label>Height (mm):</label>
-                                <input type="number" id="bulkHeight" min="1" step="0.1" placeholder="Height">
-                            </div>
-                            <div class="bulk-input-group">
-                                <label>Copies:</label>
-                                <input type="number" id="bulkCopies" min="1" placeholder="Copies">
-                            </div>
-                            <button id="applyBulkChanges" class="action-btn primary">Apply to Selected</button>
-                        </div>
+                    <div class="setting-group">
+                        <label for="imageQuality">Export Quality:</label>
+                        <select id="imageQuality">
+                            <option value="1.0">High Quality (No Compression)</option>
+                            <option value="0.9" selected>Very Good (90%)</option>
+                            <option value="0.8">Good (80%)</option>
+                            <option value="0.7">Medium (70%)</option>
+                            <option value="0.5">Low (50%)</option>
+                        </select>
+                        <small>Higher quality = larger file size</small>
                     </div>
                 </div>
-                
-                <div id="imagesList" class="images-list"></div>
             </section>
 
             <section id="actions" class="actions-section">
@@ -167,9 +184,13 @@
                     <span class="btn-icon">🎯</span>
                     Generate Layout
                 </button>
-                <button id="exportPDF" class="action-btn secondary" disabled>
+                <button id="exportPDF" class="action-btn secondary">
                     <span class="btn-icon">📄</span>
                     Export to PDF
+                </button>
+                <button id="exportWord" class="action-btn secondary">
+                    <span class="btn-icon">📝</span>
+                    Export to Word
                 </button>
             </section>
 
@@ -206,6 +227,19 @@
                 </div>
             </div>
         </footer>
+    </div>
+
+    <!-- Image Modal/Lightbox -->
+    <div id="imageModal" class="image-modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close" title="Close (ESC)">&times;</button>
+            <img id="modalImage" class="modal-image" src="" alt="Full size image">
+            <div class="modal-info">
+                <span id="modalImageName" class="image-name"></span>
+                <span id="modalImageSize" class="image-size"></span>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
