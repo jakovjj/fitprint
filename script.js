@@ -131,21 +131,6 @@ class FitPrint {
                 // Use setTimeout to get the updated checked state after the click
                 setTimeout(() => {
                     this.toggleImageSelection(imageId, e.target.checked, e);
-                    // Add visual debug indicator
-                    if (e.shiftKey) {
-                        const debugDiv = document.createElement('div');
-                        debugDiv.style.position = 'fixed';
-                        debugDiv.style.top = '20px';
-                        debugDiv.style.right = '20px';
-                        debugDiv.style.background = 'green';
-                        debugDiv.style.color = 'white';
-                        debugDiv.style.padding = '10px';
-                        debugDiv.style.borderRadius = '5px';
-                        debugDiv.style.zIndex = '10000';
-                        debugDiv.textContent = '✓ SHIFT-CLICK DETECTED!';
-                        document.body.appendChild(debugDiv);
-                        setTimeout(() => debugDiv.remove(), 2000);
-                    }
                 }, 0);
             }
         });
@@ -633,23 +618,27 @@ class FitPrint {
             
             console.log('Selecting range:', startIndex, 'to', endIndex);
             
-            // Select all items in the range
+            // Select all items in the range - FORCE CHECKED STATE
             for (let i = startIndex; i <= endIndex; i++) {
                 const configToSelect = allConfigs[i];
                 const checkbox = configToSelect.querySelector('.select-checkbox');
                 if (configToSelect && checkbox) {
-                    // Force visual update
-                    configToSelect.classList.add('selected');
+                    // FORCE both the checkbox and visual state
                     checkbox.checked = true;
-                    // Trigger visual feedback immediately
+                    configToSelect.classList.add('selected');
+                    
+                    // Force visual feedback immediately
                     configToSelect.style.transition = 'all 0.2s ease';
                     configToSelect.style.transform = 'scale(1.02)';
                     setTimeout(() => {
                         configToSelect.style.transform = '';
                     }, 200);
-                    console.log('✓ Selected item at index', i);
+                    console.log('✓ FORCE Selected item at index', i, 'checkbox checked:', checkbox.checked);
                 }
             }
+            
+            // Don't update lastSelectedIndex yet - wait for user to finish selection
+            console.log('Range selection completed, lastSelectedIndex remains:', this.lastSelectedIndex);
         } else {
             // Normal single selection
             console.log('Normal single selection for checkbox state:', checked);
@@ -661,15 +650,14 @@ class FitPrint {
                 setTimeout(() => {
                     config.style.transform = '';
                 }, 200);
+                
+                // Update last selected index for future range selections
+                this.lastSelectedIndex = currentIndex;
+                console.log('Updated lastSelectedIndex to:', this.lastSelectedIndex);
             } else {
                 config.classList.remove('selected');
+                // If unchecking, don't update lastSelectedIndex - keep it for potential range selection
             }
-        }
-
-        // Update last selected index if this item is being selected
-        if (checked || (event && event.shiftKey)) {
-            this.lastSelectedIndex = currentIndex;
-            console.log('Updated lastSelectedIndex to:', this.lastSelectedIndex);
         }
     }
 
