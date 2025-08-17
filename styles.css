@@ -178,12 +178,6 @@ header {
     }
 }
 
-.theme-toggle {
-    position: absolute;
-    top: -10px;
-    right: 20px;
-}
-
 .theme-btn {
     background: rgba(255, 255, 255, 0.2);
     border: none;
@@ -201,6 +195,7 @@ header {
 
 .theme-icon {
     font-size: 1.2rem;
+    color: white;
 }
 
 .title-section {
@@ -644,6 +639,14 @@ h2 {
 
 .bulk-btn:hover {
     background: #4b5563;
+}
+
+.bulk-btn.danger {
+    background: #dc2626;
+}
+
+.bulk-btn.danger:hover {
+    background: #b91c1c;
 }
 
 .bulk-inputs {

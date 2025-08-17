@@ -125,19 +125,42 @@ class FitPrint {
         
         // Event delegation for checkbox clicks to properly capture shift-click
         document.addEventListener('click', (e) => {
+            console.log('🔍 Document click:', e.target.className, e.target.tagName);
+            
             if (e.target.classList.contains('select-checkbox')) {
-                console.log('Checkbox click detected via delegation', { shiftKey: e.shiftKey });
-                const imageId = parseInt(e.target.dataset.imageId);
-                // Use setTimeout to get the updated checked state after the click
-                setTimeout(() => {
-                    this.toggleImageSelection(imageId, e.target.checked, e);
-                }, 0);
+                console.log('🔍 Checkbox click detected:', { 
+                    shiftKey: e.shiftKey, 
+                    imageId: e.target.dataset.imageId,
+                    currentChecked: e.target.checked
+                });
+                const imageId = e.target.dataset.imageId; // Keep as string to avoid precision issues
+                
+                // For shift-click, completely stop the event and handle everything manually
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    console.log('🚀 SHIFT-CLICK DETECTED! Completely blocking default behavior');
+                    console.log('🚀 Image ID:', imageId, 'Type:', typeof imageId);
+                    
+                    // Don't change the checkbox state here - let toggleImageSelection handle it
+                    // The checkbox will be set to checked as part of the range selection
+                    this.toggleImageSelection(imageId, true, e); // Always set to true for shift-click
+                    return false; // Extra safety to prevent default
+                } else {
+                    // For normal clicks, use setTimeout to get the updated checked state after the click
+                    setTimeout(() => {
+                        console.log('📌 Normal click - final checked state:', e.target.checked);
+                        this.toggleImageSelection(imageId, e.target.checked, e);
+                    }, 0);
+                }
             }
-        });
+        }, true); // Use capture phase to ensure we get the event first
         
         // Bulk edit listeners
         const selectAllBtn = document.getElementById('selectAll');
         const selectNoneBtn = document.getElementById('selectNone');
+        const removeSelectedBtn = document.getElementById('removeSelected');
         const applyBulkBtn = document.getElementById('applyBulkChanges');
         const lockRatioBtn = document.getElementById('lockRatio');
         const bulkWidth = document.getElementById('bulkWidth');
@@ -145,6 +168,7 @@ class FitPrint {
         
         if (selectAllBtn) selectAllBtn.addEventListener('click', () => this.selectAllImages());
         if (selectNoneBtn) selectNoneBtn.addEventListener('click', () => this.selectNoImages());
+        if (removeSelectedBtn) removeSelectedBtn.addEventListener('click', () => this.removeSelectedImages());
         if (applyBulkBtn) applyBulkBtn.addEventListener('click', () => this.applyBulkChanges());
         if (lockRatioBtn) lockRatioBtn.addEventListener('click', () => this.toggleRatioLock());
         if (bulkWidth) bulkWidth.addEventListener('input', () => this.handleBulkWidthChange());
@@ -575,25 +599,60 @@ class FitPrint {
     }
 
     removeImage(id) {
-        this.images = this.images.filter(img => img.id !== id);
+        console.log('🗑️ Removing image with id:', id);
         
-        // Remove from preview
-        const preview = document.getElementById('imagePreview');
-        const list = document.getElementById('imagesList');
+        // Store current selection state before removal
+        const selectedIds = Array.from(document.querySelectorAll('.image-config.selected'))
+            .map(config => config.dataset.id)
+            .filter(selectedId => selectedId != id); // Exclude the one being removed
         
-        preview.innerHTML = '';
-        list.innerHTML = '';
+        console.log('💾 Preserved selection state:', selectedIds);
         
-        // Re-render remaining images
-        this.images.forEach(img => {
-            this.renderImagePreview(img);
-            this.renderImageConfig(img);
-        });
+        // Remove from images array
+        this.images = this.images.filter(img => img.id != id);
+        
+        // Instead of clearing everything, just remove the specific elements
+        const configToRemove = document.querySelector(`[data-id="${id}"]`);
+        const previewToRemove = document.querySelector(`.preview-item img[src*="${id}"]`)?.parentElement;
+        
+        if (configToRemove) {
+            configToRemove.remove();
+            console.log('🗑️ Removed config element');
+        }
+        
+        if (previewToRemove) {
+            previewToRemove.remove();
+            console.log('🗑️ Removed preview element');
+        }
+        
+        // Restore selection state for remaining images
+        setTimeout(() => {
+            selectedIds.forEach(selectedId => {
+                const config = document.querySelector(`[data-id="${selectedId}"]`);
+                const checkbox = config?.querySelector('.select-checkbox');
+                if (config && checkbox) {
+                    checkbox.checked = true;
+                    config.classList.add('selected');
+                    console.log('✅ Restored selection for id:', selectedId);
+                }
+            });
+            
+            // Update selection count and reset lastSelectedIndex if needed
+            this.updateSelectionCount();
+            
+            // Reset lastSelectedIndex if the removed item was the anchor
+            const allConfigs = Array.from(document.querySelectorAll('.image-config'));
+            if (this.lastSelectedIndex >= allConfigs.length) {
+                this.lastSelectedIndex = allConfigs.length - 1;
+            }
+            
+            console.log('🔄 Updated lastSelectedIndex to:', this.lastSelectedIndex);
+        }, 10);
     }
 
     // Bulk edit functions
     toggleImageSelection(id, checked, event = null) {
-        console.log('toggleImageSelection called:', { 
+        console.log('📝 toggleImageSelection called:', { 
             id, 
             checked, 
             hasEvent: !!event, 
@@ -601,47 +660,120 @@ class FitPrint {
             lastSelectedIndex: this.lastSelectedIndex 
         });
         
-        const config = document.querySelector(`[data-id="${id}"]`);
-        if (!config) return;
+        // Try to find config by data-id first, then fallback to finding by checkbox data-image-id
+        let config = document.querySelector(`[data-id="${id}"]`);
+        
+        if (!config) {
+            // Fallback: find by checkbox data-image-id
+            const checkbox = document.querySelector(`[data-image-id="${id}"]`);
+            if (checkbox) {
+                config = checkbox.closest('.image-config');
+                console.log('💡 Found config via checkbox fallback method');
+            }
+        }
+        
+        if (!config) {
+            console.warn('❌ Config not found for id:', id);
+            console.log('Available configs:', Array.from(document.querySelectorAll('.image-config')).map(c => ({
+                dataId: c.dataset.id, 
+                checkboxImageId: c.querySelector('.select-checkbox')?.dataset.imageId
+            })));
+            return;
+        }
 
         // Get all image configs to determine indices
         const allConfigs = Array.from(document.querySelectorAll('.image-config'));
         const currentIndex = allConfigs.indexOf(config);
         
-        console.log('Current index:', currentIndex);
+        console.log('📍 Current index:', currentIndex, 'Total configs:', allConfigs.length);
 
         // Handle shift-click for range selection
-        if (event && event.shiftKey && this.lastSelectedIndex !== -1 && this.lastSelectedIndex !== currentIndex) {
+        if (event && event.shiftKey && this.lastSelectedIndex !== -1) {
             console.log('🎯 SHIFT-CLICK RANGE SELECTION TRIGGERED!');
+            
+            // Ensure the clicked checkbox is set to checked (it should always be selected in shift-click)
+            const clickedCheckbox = config.querySelector('.select-checkbox');
+            if (clickedCheckbox) {
+                clickedCheckbox.checked = true;
+            }
+            
+            // If clicking the same item, just select it
+            if (this.lastSelectedIndex === currentIndex) {
+                console.log('🎯 Shift-clicking same item, just ensuring it\'s selected');
+                config.classList.add('selected');
+                this.updateSelectionCount();
+                return;
+            }
+            
             const startIndex = Math.min(this.lastSelectedIndex, currentIndex);
             const endIndex = Math.max(this.lastSelectedIndex, currentIndex);
             
-            console.log('Selecting range:', startIndex, 'to', endIndex);
+            console.log(`🔄 Selecting range from index ${startIndex} to ${endIndex} (INCLUSIVE of both endpoints)`);
+            console.log(`📍 Previous anchor: ${this.lastSelectedIndex}, New clicked: ${currentIndex}`);
             
-            // Select all items in the range - FORCE CHECKED STATE
+            // First, let's see what checkboxes we're working with
+            console.log('🔍 Checkboxes in range:');
             for (let i = startIndex; i <= endIndex; i++) {
-                const configToSelect = allConfigs[i];
-                const checkbox = configToSelect.querySelector('.select-checkbox');
-                if (configToSelect && checkbox) {
-                    // FORCE both the checkbox and visual state
-                    checkbox.checked = true;
-                    configToSelect.classList.add('selected');
-                    
-                    // Force visual feedback immediately
-                    configToSelect.style.transition = 'all 0.2s ease';
-                    configToSelect.style.transform = 'scale(1.02)';
-                    setTimeout(() => {
-                        configToSelect.style.transform = '';
-                    }, 200);
-                    console.log('✓ FORCE Selected item at index', i, 'checkbox checked:', checkbox.checked);
-                }
+                const configToCheck = allConfigs[i];
+                const checkboxToCheck = configToCheck?.querySelector('.select-checkbox');
+                console.log(`  Index ${i}: config exists: ${!!configToCheck}, checkbox exists: ${!!checkboxToCheck}, current checked: ${checkboxToCheck?.checked}`);
             }
             
-            // Don't update lastSelectedIndex yet - wait for user to finish selection
-            console.log('Range selection completed, lastSelectedIndex remains:', this.lastSelectedIndex);
+            // Select all items in the range (INCLUSIVE of both start and end)
+            // Use setTimeout to ensure this happens after any default browser behavior
+            setTimeout(() => {
+                for (let i = startIndex; i <= endIndex; i++) {
+                    const configToSelect = allConfigs[i];
+                    const checkbox = configToSelect.querySelector('.select-checkbox');
+                    if (configToSelect && checkbox) {
+                        console.log(`🔧 Before setting - checkbox ${i} checked: ${checkbox.checked}`);
+                        
+                        // FORCE the checkbox to be checked - this is the key fix
+                        checkbox.checked = true;
+                        
+                        // Double-check it was set
+                        console.log(`🔧 After setting - checkbox ${i} checked: ${checkbox.checked}`);
+                        
+                        // Set the visual state
+                        configToSelect.classList.add('selected');
+                        
+                        // Enhanced visual feedback for range selection
+                        configToSelect.style.transition = 'all 0.3s ease';
+                        configToSelect.style.transform = 'scale(1.03)';
+                        configToSelect.style.backgroundColor = 'var(--primary-color-light, #e3f2fd)';
+                        configToSelect.style.borderColor = '#3b82f6';
+                        configToSelect.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.3)';
+                        
+                        // Reset styles after animation
+                        setTimeout(() => {
+                            configToSelect.style.transform = '';
+                            configToSelect.style.backgroundColor = '';
+                            configToSelect.style.borderColor = '';
+                            configToSelect.style.boxShadow = '';
+                        }, 300);
+                        
+                        console.log(`✅ Range-selected item at index ${i} (id: ${configToSelect.dataset.id}) - final checkbox.checked: ${checkbox.checked}`);
+                    }
+                }
+                
+                // Update selection count after all checkboxes are set
+                this.updateSelectionCount();
+            }, 10); // Small delay to ensure this runs after default behavior
+            
+            // IMPORTANT: Update lastSelectedIndex to the NEWLY CLICKED item for future range selections
+            // This means the next shift-click will be from this newly clicked position
+            this.lastSelectedIndex = currentIndex;
+            console.log('🎯 Range selection completed! NEW anchor point set to:', this.lastSelectedIndex, '(the newly clicked item)');
         } else {
-            // Normal single selection
-            console.log('Normal single selection for checkbox state:', checked);
+            // Normal single selection or shift-click without previous selection
+            console.log('📌 Normal single selection - checked state:', checked);
+            
+            const checkbox = config.querySelector('.select-checkbox');
+            if (checkbox) {
+                // Ensure checkbox state matches the expected state
+                checkbox.checked = checked;
+            }
+            
             if (checked) {
                 config.classList.add('selected');
                 // Visual feedback for selection
@@ -653,10 +785,50 @@ class FitPrint {
                 
                 // Update last selected index for future range selections
                 this.lastSelectedIndex = currentIndex;
-                console.log('Updated lastSelectedIndex to:', this.lastSelectedIndex);
+                console.log('✅ Updated lastSelectedIndex to:', this.lastSelectedIndex);
             } else {
                 config.classList.remove('selected');
-                // If unchecking, don't update lastSelectedIndex - keep it for potential range selection
+                // If unchecking the last selected item, reset the last selected index
+                if (currentIndex === this.lastSelectedIndex) {
+                    this.lastSelectedIndex = -1;
+                    console.log('🔄 Reset lastSelectedIndex due to unchecking last selected item');
+                }
+            }
+        }
+        
+        // Update selection count for UI feedback
+        this.updateSelectionCount();
+    }
+
+    updateSelectionCount() {
+        const selectedCount = document.querySelectorAll('.image-config.selected').length;
+        console.log(`📊 Current selection count: ${selectedCount}`);
+        
+        // Update any UI elements that show selection count - with safety checks
+        const bulkControls = document.getElementById('bulkControls');
+        if (bulkControls) {
+            // Try to find existing selection count element
+            let countElement = document.querySelector('.selection-count');
+            
+            if (!countElement) {
+                // The h3 is actually the previous sibling of bulkControls
+                const h3Element = bulkControls.previousElementSibling;
+                if (h3Element && h3Element.tagName === 'H3') {
+                    countElement = document.createElement('span');
+                    countElement.className = 'selection-count';
+                    countElement.style.cssText = 'margin-left: 10px; font-weight: bold; color: #3b82f6;';
+                    h3Element.appendChild(countElement);
+                    console.log('📊 Created selection count element in h3');
+                } else {
+                    console.log('📊 Could not find h3 element for selection count');
+                }
+            }
+            
+            // Update the count text if we have an element
+            if (countElement) {
+                countElement.textContent = selectedCount > 0 ? ` (${selectedCount} selected)` : '';
+            } else {
+                console.log('📊 Selection count updated:', selectedCount, '(no UI element to display in)');
             }
         }
     }
@@ -665,20 +837,67 @@ class FitPrint {
         const checkboxes = document.querySelectorAll('.select-checkbox');
         checkboxes.forEach(checkbox => {
             checkbox.checked = true;
-            this.toggleImageSelection(checkbox.closest('.image-config').dataset.id, true);
+            const config = checkbox.closest('.image-config');
+            const id = config.dataset.id; // Keep as string
+            this.toggleImageSelection(id, true);
         });
-        // Reset last selected index after selecting all
-        this.lastSelectedIndex = -1;
+        // Set last selected index to the last item after selecting all
+        const allConfigs = Array.from(document.querySelectorAll('.image-config'));
+        this.lastSelectedIndex = allConfigs.length - 1;
     }
 
     selectNoImages() {
         const checkboxes = document.querySelectorAll('.select-checkbox');
         checkboxes.forEach(checkbox => {
             checkbox.checked = false;
-            this.toggleImageSelection(checkbox.closest('.image-config').dataset.id, false);
+            const config = checkbox.closest('.image-config');
+            const id = config.dataset.id; // Keep as string
+            this.toggleImageSelection(id, false);
         });
         // Reset last selected index after deselecting all
         this.lastSelectedIndex = -1;
+    }
+
+    removeSelectedImages() {
+        const selectedConfigs = document.querySelectorAll('.image-config.selected');
+        
+        if (selectedConfigs.length === 0) {
+            alert('Please select at least one image to remove.');
+            return;
+        }
+        
+        const selectedCount = selectedConfigs.length;
+        const confirmMessage = `Are you sure you want to remove ${selectedCount} selected image${selectedCount > 1 ? 's' : ''}?`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        console.log(`🗑️ Removing ${selectedCount} selected images`);
+        
+        // Get IDs of selected images
+        const selectedIds = Array.from(selectedConfigs).map(config => config.dataset.id);
+        
+        // Remove from images array
+        this.images = this.images.filter(img => !selectedIds.includes(img.id.toString()));
+        
+        // Remove DOM elements
+        selectedConfigs.forEach(config => {
+            const id = config.dataset.id;
+            // Remove preview element
+            const previewToRemove = document.querySelector(`.preview-item img[src*="${id}"]`)?.parentElement;
+            if (previewToRemove) {
+                previewToRemove.remove();
+            }
+            // Remove config element
+            config.remove();
+        });
+        
+        // Reset selection state
+        this.lastSelectedIndex = -1;
+        this.updateSelectionCount();
+        
+        console.log(`✅ Removed ${selectedCount} images successfully`);
     }
 
     toggleRatioLock() {
@@ -739,8 +958,8 @@ class FitPrint {
         }
         
         selectedConfigs.forEach(config => {
-            const id = parseInt(config.dataset.id);
-            const image = this.images.find(img => img.id === id);
+            const id = config.dataset.id; // Keep as string
+            const image = this.images.find(img => img.id == id); // Use == for loose comparison
             
             if (image) {
                 if (bulkWidth) {
