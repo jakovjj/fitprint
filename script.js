@@ -184,7 +184,6 @@ class FitPrint {
         const imageInput = document.getElementById('imageInput');
         const generateBtn = document.getElementById('generateLayout');
         const exportBtn = document.getElementById('exportPDF');
-        const exportWordBtn = document.getElementById('exportWord');
         const themeToggle = document.getElementById('themeToggle');
         const paperSize = document.getElementById('paperSize');
         const paperOrientation = document.getElementById('paperOrientation');
@@ -198,7 +197,6 @@ class FitPrint {
         imageInput.addEventListener('change', (e) => this.handleImageUpload(e));
         generateBtn.addEventListener('click', () => this.generateLayoutWithLoading());
         exportBtn.addEventListener('click', () => this.exportToPDFWithLoading());
-        exportWordBtn.addEventListener('click', () => this.exportToWordWithLoading());
         themeToggle.addEventListener('click', () => this.toggleTheme());
         
         // Event delegation for checkbox clicks to properly capture shift-click
@@ -331,7 +329,6 @@ class FitPrint {
     async generateLayoutWithLoading() {
         // Reset export button states
         document.getElementById('exportPDF').classList.remove('ready');
-        document.getElementById('exportWord').classList.remove('ready');
         
         this.showLoading('Generating optimal layout...');
         
@@ -1192,7 +1189,6 @@ class FitPrint {
             
             // Mark export buttons as ready
             document.getElementById('exportPDF').classList.add('ready');
-            document.getElementById('exportWord').classList.add('ready');
             
             console.log('Layout generation completed successfully');
         } catch (error) {
@@ -1331,8 +1327,37 @@ class FitPrint {
                 const placement = this.findOptimalPosition(image, placed, usableWidth, usableHeight, imageSpacing, allowRotation);
                 
                 if (placement) {
-                    // Prefer placements that are lower and more to the left
-                    const score = -(placement.y * 1000 + placement.x);
+                    // "2048-style" alignment: Prefer placements that align with existing items
+                    let score = -(placement.y * 1000 + placement.x); // Original bottom-left preference
+                    
+                    // Bonus for aligning with existing item edges (creates natural grid)
+                    for (const placedItem of placed) {
+                        // Vertical alignment bonus
+                        if (Math.abs(placement.x - placedItem.x) < 1) {
+                            score += 5000; // Left edges align
+                        }
+                        if (Math.abs((placement.x + placement.width) - (placedItem.x + placedItem.width)) < 1) {
+                            score += 5000; // Right edges align
+                        }
+                        
+                        // Horizontal alignment bonus
+                        if (Math.abs(placement.y - placedItem.y) < 1) {
+                            score += 5000; // Top edges align
+                        }
+                        if (Math.abs((placement.y + placement.height) - (placedItem.y + placedItem.height)) < 1) {
+                            score += 5000; // Bottom edges align
+                        }
+                        
+                        // Extra bonus for perfect grid alignment (both x and y edges align)
+                        const xAlign = Math.abs(placement.x - placedItem.x) < 1 || 
+                                      Math.abs((placement.x + placement.width) - (placedItem.x + placedItem.width)) < 1;
+                        const yAlign = Math.abs(placement.y - placedItem.y) < 1 || 
+                                      Math.abs((placement.y + placement.height) - (placedItem.y + placedItem.height)) < 1;
+                        
+                        if (xAlign && yAlign) {
+                            score += 10000; // Perfect grid alignment
+                        }
+                    }
                     
                     if (!bestPlacement || score > bestPlacement.score) {
                         bestPlacement = { ...placement, score, imageIndex: i };
@@ -1482,6 +1507,15 @@ class FitPrint {
         const placedItems = [];
         const remaining = [...images];
         
+        // Cut-friendly packing: Initialize rails for shared cut lines
+        const railsX = new Set([0, width]);  // Vertical cut lines
+        const railsY = new Set([0, height]); // Horizontal cut lines
+        const snapTol = 0.5; // Increased snap tolerance to 0.5mm
+        const railWeight = 1e6; // Reduced weight to allow more flexibility
+        
+        // Pre-analyze items to suggest good rail positions
+        this.suggestOptimalRails(remaining, railsX, railsY, width, height, allowRotation);
+        
         while (remaining.length > 0 && freeRects.length > 0) {
             let bestItem = null;
             let bestRect = null;
@@ -1511,7 +1545,21 @@ class FitPrint {
                                 score = -waste;
                             }
                             
-                            if (score > bestScore) {
+                        // Add rail penalty for cut-friendly packing
+                        const railPenalty = this.calculateRailPenalty(
+                            rect.x, rect.y, orientation.w, orientation.h,
+                            railsX, railsY, snapTol
+                        );
+                        
+                        // MUCH stronger rail penalty - make alignment almost mandatory
+                        score -= railWeight * railPenalty;
+                        
+                        // Additional bonus for creating regular grids
+                        const gridBonus = this.calculateGridBonus(
+                            rect.x, rect.y, orientation.w, orientation.h,
+                            railsX, railsY, snapTol
+                        );
+                        score += gridBonus;                            if (score > bestScore) {
                                 bestScore = score;
                                 bestItem = item;
                                 bestRect = rect;
@@ -1538,6 +1586,9 @@ class FitPrint {
                 rotated: bestRotated
             });
             
+            // Update rails with new item edges for cut-friendly packing
+            this.updateRails(bestRect.x, bestRect.y, finalWidth, finalHeight, railsX, railsY, snapTol);
+            
             // Remove item from remaining
             const itemIndex = remaining.indexOf(bestItem);
             remaining.splice(itemIndex, 1);
@@ -1546,9 +1597,258 @@ class FitPrint {
             this.splitRectangle(freeRects, bestRect, finalWidth, finalHeight);
         }
         
+        // Post-process: snap items to nearest rails
+        this.snapItemsToRails(placedItems, railsX, railsY, snapTol, margin, width, height);
+        
         return placedItems;
     }
     
+    // Pre-analyze items to suggest optimal rail positions
+    suggestOptimalRails(items, railsX, railsY, width, height, allowRotation) {
+        // Find the most common dimensions
+        const dimensionCounts = new Map();
+        
+        for (const item of items) {
+            const dims = allowRotation ? 
+                [[item.width, item.height], [item.height, item.width]] :
+                [[item.width, item.height]];
+                
+            for (const [w, h] of dims) {
+                const key = `${w.toFixed(1)}x${h.toFixed(1)}`;
+                dimensionCounts.set(key, (dimensionCounts.get(key) || 0) + 1);
+            }
+        }
+        
+        // Find the most common size
+        let mostCommonSize = null;
+        let maxCount = 0;
+        for (const [key, count] of dimensionCounts) {
+            if (count > maxCount) {
+                maxCount = count;
+                const [w, h] = key.split('x').map(Number);
+                mostCommonSize = { width: w, height: h, count };
+            }
+        }
+        
+        if (mostCommonSize) {
+            console.log(`Creating grid for most common size: ${mostCommonSize.width}x${mostCommonSize.height} (${mostCommonSize.count} items)`);
+            
+            // Create a regular grid based on the most common size
+            const itemW = mostCommonSize.width;
+            const itemH = mostCommonSize.height;
+            
+            // Add vertical rails (for width)
+            for (let x = itemW; x < width; x += itemW) {
+                railsX.add(x);
+            }
+            
+            // Add horizontal rails (for height)  
+            for (let y = itemH; y < height; y += itemH) {
+                railsY.add(y);
+            }
+            
+            // Also add rails for double-width/height to accommodate larger items
+            if (itemW * 2 <= width) {
+                for (let x = itemW * 2; x < width; x += itemW * 2) {
+                    railsX.add(x);
+                }
+            }
+            if (itemH * 2 <= height) {
+                for (let y = itemH * 2; y < height; y += itemH * 2) {
+                    railsY.add(y);
+                }
+            }
+        }
+        
+        // Add some additional strategic rails for variety
+        const numCols = Math.floor(width / 50); // Assume ~50mm minimum column width
+        const numRows = Math.floor(height / 50); // Assume ~50mm minimum row height
+        
+        for (let i = 1; i < numCols; i++) {
+            railsX.add((width / numCols) * i);
+        }
+        for (let i = 1; i < numRows; i++) {
+            railsY.add((height / numRows) * i);
+        }
+        
+        console.log(`Suggested rails - X: ${Array.from(railsX).sort((a,b) => a-b)}`);
+        console.log(`Suggested rails - Y: ${Array.from(railsY).sort((a,b) => a-b)}`);
+    }
+    
+    // Helper function to calculate rail penalty for cut-friendly packing
+    calculateRailPenalty(x, y, w, h, railsX, railsY, snapTol) {
+        const leftEdge = x;
+        const rightEdge = x + w;
+        const topEdge = y;
+        const bottomEdge = y + h;
+        
+        let penalty = 0;
+        
+        // Check each edge against existing rails
+        const leftDist = this.distToNearestRail(leftEdge, railsX, snapTol);
+        const rightDist = this.distToNearestRail(rightEdge, railsX, snapTol);
+        const topDist = this.distToNearestRail(topEdge, railsY, snapTol);
+        const bottomDist = this.distToNearestRail(bottomEdge, railsY, snapTol);
+        
+        // MASSIVE penalty for edges that don't align with existing rails
+        if (leftDist > snapTol) penalty += 10000;
+        if (rightDist > snapTol) penalty += 10000;
+        if (topDist > snapTol) penalty += 10000;
+        if (bottomDist > snapTol) penalty += 10000;
+        
+        // Perfect alignment gets huge bonus
+        if (leftDist === 0) penalty -= 5000;
+        if (rightDist === 0) penalty -= 5000;
+        if (topDist === 0) penalty -= 5000;
+        if (bottomDist === 0) penalty -= 5000;
+        
+        return penalty;
+    }
+    
+    // Calculate bonus for creating regular grid patterns
+    calculateGridBonus(x, y, w, h, railsX, railsY, snapTol) {
+        let bonus = 0;
+        
+        // Check if this placement creates or extends a regular pattern
+        const leftEdge = x;
+        const rightEdge = x + w;
+        const topEdge = y;
+        const bottomEdge = y + h;
+        
+        // Bonus for aligning with multiple existing rails
+        let alignedEdges = 0;
+        if (this.distToNearestRail(leftEdge, railsX, snapTol) === 0) alignedEdges++;
+        if (this.distToNearestRail(rightEdge, railsX, snapTol) === 0) alignedEdges++;
+        if (this.distToNearestRail(topEdge, railsY, snapTol) === 0) alignedEdges++;
+        if (this.distToNearestRail(bottomEdge, railsY, snapTol) === 0) alignedEdges++;
+        
+        // Exponential bonus for more aligned edges
+        bonus += Math.pow(alignedEdges, 3) * 1000;
+        
+        return bonus;
+    }
+    
+    // Helper function to find distance to nearest rail
+    distToNearestRail(coord, rails, snapTol) {
+        let minDist = Infinity;
+        for (const rail of rails) {
+            const dist = Math.abs(coord - rail);
+            if (dist < minDist) {
+                minDist = dist;
+            }
+        }
+        return minDist <= snapTol ? 0 : minDist;
+    }
+    
+    // Helper function to update rails when placing an item
+    updateRails(x, y, w, h, railsX, railsY, snapTol) {
+        const leftEdge = x;
+        const rightEdge = x + w;
+        const topEdge = y;
+        const bottomEdge = y + h;
+        
+        // Add vertical rails (x coordinates)
+        this.addRailIfNew(leftEdge, railsX, snapTol);
+        this.addRailIfNew(rightEdge, railsX, snapTol);
+        
+        // Add horizontal rails (y coordinates)
+        this.addRailIfNew(topEdge, railsY, snapTol);
+        this.addRailIfNew(bottomEdge, railsY, snapTol);
+    }
+    
+    // Helper function to add a rail if it's not within snap tolerance of existing ones
+    addRailIfNew(coord, rails, snapTol) {
+        const railsArray = Array.from(rails);
+        
+        // First check if we should snap to an existing rail
+        for (const rail of railsArray) {
+            if (Math.abs(coord - rail) <= snapTol) {
+                return; // Don't add, use existing rail
+            }
+        }
+        
+        // Add the new rail
+        rails.add(coord);
+        
+        // More aggressive merging - look for rails that could be consolidated
+        this.mergeCloseRails(rails, snapTol * 2); // Use larger tolerance for merging
+    }
+    
+    // Helper function to merge rails that are closer than snap tolerance
+    mergeCloseRails(rails, snapTol) {
+        const railsArray = Array.from(rails).sort((a, b) => a - b);
+        const toRemove = new Set();
+        
+        for (let i = 1; i < railsArray.length; i++) {
+            if (railsArray[i] - railsArray[i-1] <= snapTol) {
+                // Keep the lower coordinate, remove the higher one
+                toRemove.add(railsArray[i]);
+            }
+        }
+        
+        for (const rail of toRemove) {
+            rails.delete(rail);
+        }
+    }
+    
+    // Step 2: Post-process snap to clean up rounding
+    snapItemsToRails(placedItems, railsX, railsY, snapTol, margin, pageWidth, pageHeight) {
+        // Increase snap tolerance for post-processing
+        const postSnapTol = snapTol * 3; // More aggressive snapping
+        
+        for (const item of placedItems) {
+            // Convert back to rect coordinates (remove margin)
+            const rectX = item.x - margin;
+            const rectY = item.y - margin;
+            
+            // Find nearest rails for each edge with increased tolerance
+            const nearestLeft = this.findNearestRail(rectX, railsX, postSnapTol);
+            const nearestTop = this.findNearestRail(rectY, railsY, postSnapTol);
+            
+            // Also check if right/bottom edges can align
+            const rectRight = rectX + item.width;
+            const rectBottom = rectY + item.height;
+            const nearestRight = this.findNearestRail(rectRight, railsX, postSnapTol);
+            const nearestBottom = this.findNearestRail(rectBottom, railsY, postSnapTol);
+            
+            let newX = rectX;
+            let newY = rectY;
+            
+            // Prioritize left/top edge snapping, but consider right/bottom if better
+            if (nearestLeft !== null && nearestLeft >= 0 && nearestLeft + item.width <= pageWidth) {
+                newX = nearestLeft;
+            } else if (nearestRight !== null && nearestRight <= pageWidth && nearestRight - item.width >= 0) {
+                newX = nearestRight - item.width;
+            }
+            
+            if (nearestTop !== null && nearestTop >= 0 && nearestTop + item.height <= pageHeight) {
+                newY = nearestTop;
+            } else if (nearestBottom !== null && nearestBottom <= pageHeight && nearestBottom - item.height >= 0) {
+                newY = nearestBottom - item.height;
+            }
+            
+            // Update item position (add margin back) with precise rounding
+            item.x = Math.round((newX + margin) * 1000) / 1000;
+            item.y = Math.round((newY + margin) * 1000) / 1000;
+        }
+    }
+    
+    // Helper function to find nearest rail within snap tolerance
+    findNearestRail(coord, rails, snapTol) {
+        let nearestRail = null;
+        let minDistance = Infinity;
+        
+        for (const rail of rails) {
+            const distance = Math.abs(coord - rail);
+            if (distance <= snapTol && distance < minDistance) {
+                minDistance = distance;
+                nearestRail = rail;
+            }
+        }
+        
+        return nearestRail;
+    }
+
     splitRectangle(freeRects, usedRect, itemWidth, itemHeight) {
         const rectIndex = freeRects.indexOf(usedRect);
         freeRects.splice(rectIndex, 1);
@@ -2401,21 +2701,6 @@ class FitPrint {
         }
     }
 
-    async exportToWordWithLoading() {
-        if (this.layout.length === 0) {
-            alert('Please generate a layout first!');
-            return;
-        }
-
-        this.showLoading('Preparing Word export...');
-        
-        try {
-            await this.exportToWord();
-        } finally {
-            this.hideLoading();
-        }
-    }
-
     async exportToPDF() {
         try {
             console.log('🔄 Starting PDF export...');
@@ -2495,147 +2780,6 @@ class FitPrint {
             console.error('❌ PDF Export Error:', error);
             alert('Error exporting to PDF: ' + error.message);
         }
-    }
-
-    async exportToWord() {
-        try {
-            const { Document, Packer, Paragraph, ImageRun, PageBreak } = docx;
-            const paperWidth = parseFloat(document.getElementById('paperWidth').value);
-            const paperHeight = parseFloat(document.getElementById('paperHeight').value);
-            
-            // Convert mm to twips (1mm = 56.692913386 twips)
-            const mmToTwips = 56.692913386;
-            
-            const doc = new Document({
-                sections: []
-            });
-
-            for (let pageIndex = 0; pageIndex < this.layout.length; pageIndex++) {
-                const page = this.layout[pageIndex];
-                const children = [];
-
-                // Update loading message
-                const loadingText = document.querySelector('.loading-content p');
-                if (loadingText) {
-                    loadingText.textContent = `Preparing Word document... Page ${pageIndex + 1}/${this.layout.length}`;
-                }
-
-                // Add page title
-                children.push(new Paragraph({
-                    text: `Page ${pageIndex + 1}`,
-                    heading: "Heading1"
-                }));
-
-                // Process images on this page
-                for (const img of page.images) {
-                    try {
-                        // Convert image to proper format for Word
-                        const imageBuffer = await this.convertImageToBuffer(img);
-                        
-                        children.push(new Paragraph({
-                            children: [
-                                new ImageRun({
-                                    data: imageBuffer,
-                                    transformation: {
-                                        width: Math.round(img.width * mmToTwips),
-                                        height: Math.round(img.height * mmToTwips),
-                                    },
-                                }),
-                            ],
-                        }));
-                    } catch (error) {
-                        console.error('Error adding image to Word document:', error);
-                        // Add error placeholder
-                        children.push(new Paragraph({
-                            text: `[Image Error: ${img.originalName || 'Unknown'}]`
-                        }));
-                    }
-                }
-
-                // Add page break except for last page
-                if (pageIndex < this.layout.length - 1) {
-                    children.push(new Paragraph({
-                        children: [new PageBreak()]
-                    }));
-                }
-
-                doc.addSection({
-                    properties: {
-                        page: {
-                            size: {
-                                width: Math.round(paperWidth * mmToTwips),
-                                height: Math.round(paperHeight * mmToTwips),
-                            },
-                        },
-                    },
-                    children: children
-                });
-            }
-
-            // Generate and save the document
-            const buffer = await Packer.toBuffer(doc);
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-            saveAs(blob, 'fitprint-layout.docx');
-            
-        } catch (error) {
-            console.error('Error exporting to Word:', error);
-            alert('Error exporting to Word. Please try again.');
-        }
-    }
-
-    convertImageToBuffer(imgData) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                // Get quality setting
-                const quality = parseFloat(document.getElementById('imageQuality').value);
-                
-                // Determine if original image has transparency
-                const hasTransparency = imgData.dataUrl.startsWith('data:image/png');
-                
-                if (imgData.rotated) {
-                    canvas.width = img.height;
-                    canvas.height = img.width;
-                    
-                    // Set white background for non-transparent images
-                    if (!hasTransparency) {
-                        ctx.fillStyle = 'white';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    }
-                    
-                    ctx.translate(canvas.width / 2, canvas.height / 2);
-                    ctx.rotate(Math.PI / 2);
-                    ctx.drawImage(img, -img.width / 2, -img.height / 2);
-                } else {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    
-                    // Set white background for non-transparent images
-                    if (!hasTransparency) {
-                        ctx.fillStyle = 'white';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    }
-                    
-                    ctx.drawImage(img, 0, 0);
-                }
-                
-                // Convert canvas to blob - use PNG for transparency, JPEG for others
-                const format = hasTransparency ? 'image/png' : 'image/jpeg';
-                const qualityParam = hasTransparency ? undefined : quality;
-                
-                canvas.toBlob((blob) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsArrayBuffer(blob);
-                }, format, qualityParam);
-            };
-            img.onerror = reject;
-            img.src = imgData.dataUrl;
-        });
     }
 
     loadImageForPDF(imgData) {
