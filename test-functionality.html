@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FitPrint Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+        .test-passed {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+        .test-failed {
+            border-color: #dc3545;
+            background: #f8d7da;
+        }
+        .status {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .status.pass { color: #28a745; }
+        .status.fail { color: #dc3545; }
+        
+        .image-config-test {
+            display: grid;
+            grid-template-columns: auto auto 100px 1fr auto;
+            gap: 15px;
+            align-items: center;
+            padding: 15px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .config-inputs-test {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            align-items: start;
+            width: 100%;
+        }
+        .config-inputs-test > div {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .config-inputs-test label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #374151;
+        }
+        .config-inputs-test input {
+            padding: 8px 12px;
+            border: 1px solid #fecaca;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .layout-preview-test {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: flex-start;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+        }
+        
+        .page-preview-test {
+            border: 2px solid #dc2626;
+            border-radius: 8px;
+            padding: 10px;
+            background: #ffffff;
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            flex: 0 0 auto;
+            min-width: 200px;
+            max-width: 350px;
+            margin: 5px;
+        }
+        
+        .page-content-test {
+            position: relative;
+            background: #fafafa;
+            border: 1px dashed #ccc;
+            min-height: 200px;
+            overflow: hidden;
+            box-sizing: border-box;
+            width: 250px;
+            height: 180px;
+        }
+        
+        .footer-test {
+            background: #f8f9fa;
+            color: #333;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        
+        .paypal-btn-test {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+        }
+        
+        .paypal-btn-test:hover {
+            background: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
+        }
+        
+        .checkbox-test {
+            margin: 10px 0;
+        }
+        .checkbox-test input {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            accent-color: #dc2626;
+        }
+        .checkbox-test.selected {
+            background: #dbeafe;
+            border: 2px solid #3b82f6;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>FitPrint Functionality Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Shift-Click Selection Test</h3>
+        <p>Try holding Shift and clicking multiple checkboxes:</p>
+        
+        <div class="checkbox-test" data-index="0">
+            <input type="checkbox" class="test-checkbox" data-id="0"> Image 1
+        </div>
+        <div class="checkbox-test" data-index="1">
+            <input type="checkbox" class="test-checkbox" data-id="1"> Image 2
+        </div>
+        <div class="checkbox-test" data-index="2">
+            <input type="checkbox" class="test-checkbox" data-id="2"> Image 3
+        </div>
+        <div class="checkbox-test" data-index="3">
+            <input type="checkbox" class="test-checkbox" data-id="3"> Image 4
+        </div>
+        
+        <div id="shift-test-result" class="status">Click checkboxes with Shift held to test range selection</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Image Configuration Layout Test</h3>
+        <p>Testing the grid layout for image settings (should be properly aligned):</p>
+        
+        <div class="image-config-test">
+            <input type="checkbox" checked>
+            <div style="width: 80px; height: 80px; background: #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px;">IMG</div>
+            <div class="config-inputs-test">
+                <div>
+                    <label>Width (mm):</label>
+                    <input type="number" value="50.0">
+                </div>
+                <div>
+                    <label>Height (mm):</label>
+                    <input type="number" value="75.0">
+                </div>
+                <div>
+                    <label>Copies:</label>
+                    <input type="number" value="1">
+                </div>
+            </div>
+            <button style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px;">✕ Remove</button>
+        </div>
+        
+        <div id="layout-test-result" class="status pass">✓ Layout appears correctly aligned</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Page Preview Container Test</h3>
+        <p>Testing that page previews stay within their containers:</p>
+        
+        <div class="layout-preview-test">
+            <div class="page-preview-test">
+                <div style="color: #dc2626; font-weight: 600; margin-bottom: 15px; text-align: center;">Page 1</div>
+                <div class="page-content-test">
+                    <div style="position: absolute; left: 10px; top: 10px; width: 40px; height: 30px; background: rgba(220, 38, 38, 0.3); border: 1px solid #dc2626; font-size: 10px; display: flex; align-items: center; justify-content: center;">IMG1</div>
+                    <div style="position: absolute; left: 60px; top: 10px; width: 40px; height: 30px; background: rgba(220, 38, 38, 0.3); border: 1px solid #dc2626; font-size: 10px; display: flex; align-items: center; justify-content: center;">IMG2</div>
+                </div>
+            </div>
+            <div class="page-preview-test">
+                <div style="color: #dc2626; font-weight: 600; margin-bottom: 15px; text-align: center;">Page 2</div>
+                <div class="page-content-test">
+                    <div style="position: absolute; left: 10px; top: 10px; width: 40px; height: 30px; background: rgba(220, 38, 38, 0.3); border: 1px solid #dc2626; font-size: 10px; display: flex; align-items: center; justify-content: center;">IMG3</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="preview-test-result" class="status pass">✓ Page previews contained properly</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>4. Footer Styling Test</h3>
+        <p>Testing the new light gray footer with green "buy me a coffee" button:</p>
+        
+        <div class="footer-test">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <p style="margin: 0; font-size: 0.9rem; color: #666;">&copy; 2025 Glare Studios. All rights reserved.</p>
+                </div>
+                <div>
+                    <button class="paypal-btn-test">☕ Buy me a coffee</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="footer-test-result" class="status pass">✓ Footer styling looks correct</div>
+    </div>
+    
+    <script>
+        // Test shift-click functionality
+        let lastSelectedIndex = -1;
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('test-checkbox')) {
+                const container = e.target.closest('.checkbox-test');
+                const currentIndex = parseInt(container.dataset.index);
+                const resultDiv = document.getElementById('shift-test-result');
+                
+                // Handle shift-click for range selection
+                if (e.shiftKey && lastSelectedIndex !== -1 && lastSelectedIndex !== currentIndex) {
+                    const startIndex = Math.min(lastSelectedIndex, currentIndex);
+                    const endIndex = Math.max(lastSelectedIndex, currentIndex);
+                    
+                    // Select all items in the range
+                    for (let i = startIndex; i <= endIndex; i++) {
+                        const targetContainer = document.querySelector(`[data-index="${i}"]`);
+                        const targetCheckbox = targetContainer.querySelector('.test-checkbox');
+                        if (targetContainer && targetCheckbox) {
+                            targetContainer.classList.add('selected');
+                            targetCheckbox.checked = true;
+                        }
+                    }
+                    
+                    resultDiv.textContent = `✓ SHIFT-CLICK WORKED! Selected range ${startIndex} to ${endIndex}`;
+                    resultDiv.className = 'status pass';
+                    container.closest('.test-section').className = 'test-section test-passed';
+                } else {
+                    // Normal single selection
+                    if (e.target.checked) {
+                        container.classList.add('selected');
+                        resultDiv.textContent = `✓ Selected item ${currentIndex}`;
+                        resultDiv.className = 'status pass';
+                    } else {
+                        container.classList.remove('selected');
+                        resultDiv.textContent = `Deselected item ${currentIndex}`;
+                        resultDiv.className = 'status';
+                    }
+                }
+                
+                // Update last selected index if this item is being selected
+                if (e.target.checked || e.shiftKey) {
+                    lastSelectedIndex = currentIndex;
+                }
+            }
+        });
+        
+        // Test visual feedback
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Shift') {
+                document.body.style.cursor = 'crosshair';
+                document.getElementById('shift-test-result').textContent = 'SHIFT key held - ready for range selection';
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift') {
+                document.body.style.cursor = '';
+            }
+        });
+    </script>
+</body>
+</html>

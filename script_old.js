@@ -2,106 +2,8 @@ class FitPrint {
     constructor() {
         this.images = [];
         this.layout = [];
-        this.ratioLocked = true; // Default to locked ratio
-        this.lastSelectedIndex = -1; // Track last selected index for shift-click selection
         this.initializeEventListeners();
         this.initializeTheme();
-        this.initializeBulkEdit();
-        this.initializeNavigation();
-    }
-
-    initializeBulkEdit() {
-        // Start with bulk edit collapsed
-        setTimeout(() => {
-            const bulkControls = document.getElementById('bulkControls');
-            const toggleIcon = document.getElementById('bulkToggleIcon');
-            
-            if (bulkControls && toggleIcon) {
-                bulkControls.classList.add('collapsed');
-                toggleIcon.classList.add('collapsed');
-            }
-        }, 100);
-    }
-
-    initializeNavigation() {
-        const navToggle = document.getElementById('navToggle');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-        const navLinks = document.querySelectorAll('.nav-link');
-
-        // Toggle sidebar on mobile
-        if (navToggle) {
-            navToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('open');
-                sidebarOverlay.classList.toggle('active');
-            });
-        }
-
-        // Close sidebar when clicking overlay
-        if (sidebarOverlay) {
-            sidebarOverlay.addEventListener('click', () => {
-                sidebar.classList.remove('open');
-                sidebarOverlay.classList.remove('active');
-            });
-        }
-
-        // Navigation link clicks
-        navLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                
-                // Remove active class from all links
-                navLinks.forEach(l => l.classList.remove('active'));
-                
-                // Add active class to clicked link
-                link.classList.add('active');
-                
-                // Get target section
-                const targetId = link.getAttribute('href').substring(1);
-                const targetSection = document.getElementById(targetId);
-                
-                if (targetSection) {
-                    // Smooth scroll to section
-                    targetSection.scrollIntoView({ 
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-                
-                // Close sidebar on mobile after navigation
-                if (window.innerWidth < 1200) {
-                    sidebar.classList.remove('open');
-                    sidebarOverlay.classList.remove('active');
-                }
-            });
-        });
-
-        // Highlight current section on scroll
-        this.initializeScrollSpy();
-    }
-
-    initializeScrollSpy() {
-        const sections = document.querySelectorAll('section[id]');
-        const navLinks = document.querySelectorAll('.nav-link');
-        
-        const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const id = entry.target.getAttribute('id');
-                        navLinks.forEach(link => {
-                            link.classList.remove('active');
-                            if (link.getAttribute('href') === `#${id}`) {
-                                link.classList.add('active');
-                            }
-                        });
-                    }
-                });
-            },
-            { threshold: 0.6 }
-        );
-        
-        sections.forEach(section => observer.observe(section));
     }
 
     initializeEventListeners() {
@@ -119,60 +21,11 @@ class FitPrint {
         const outerMargin = document.getElementById('outerMargin');
 
         imageInput.addEventListener('change', (e) => this.handleImageUpload(e));
-        generateBtn.addEventListener('click', () => this.generateLayoutWithLoading());
+        generateBtn.addEventListener('click', () => this.generateLayout());
         exportBtn.addEventListener('click', () => this.exportToPDF());
         themeToggle.addEventListener('click', () => this.toggleTheme());
-        
-        // Event delegation for checkbox clicks to properly capture shift-click
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('select-checkbox')) {
-                console.log('Checkbox click detected via delegation', { shiftKey: e.shiftKey });
-                const imageId = parseInt(e.target.dataset.imageId);
-                // Use setTimeout to get the updated checked state after the click
-                setTimeout(() => {
-                    this.toggleImageSelection(imageId, e.target.checked, e);
-                    // Add visual debug indicator
-                    if (e.shiftKey) {
-                        const debugDiv = document.createElement('div');
-                        debugDiv.style.position = 'fixed';
-                        debugDiv.style.top = '20px';
-                        debugDiv.style.right = '20px';
-                        debugDiv.style.background = 'green';
-                        debugDiv.style.color = 'white';
-                        debugDiv.style.padding = '10px';
-                        debugDiv.style.borderRadius = '5px';
-                        debugDiv.style.zIndex = '10000';
-                        debugDiv.textContent = '✓ SHIFT-CLICK DETECTED!';
-                        document.body.appendChild(debugDiv);
-                        setTimeout(() => debugDiv.remove(), 2000);
-                    }
-                }, 0);
-            }
-        });
-        
-        // Bulk edit listeners
-        const selectAllBtn = document.getElementById('selectAll');
-        const selectNoneBtn = document.getElementById('selectNone');
-        const applyBulkBtn = document.getElementById('applyBulkChanges');
-        const lockRatioBtn = document.getElementById('lockRatio');
-        const bulkWidth = document.getElementById('bulkWidth');
-        const bulkHeight = document.getElementById('bulkHeight');
-        
-        if (selectAllBtn) selectAllBtn.addEventListener('click', () => this.selectAllImages());
-        if (selectNoneBtn) selectNoneBtn.addEventListener('click', () => this.selectNoImages());
-        if (applyBulkBtn) applyBulkBtn.addEventListener('click', () => this.applyBulkChanges());
-        if (lockRatioBtn) lockRatioBtn.addEventListener('click', () => this.toggleRatioLock());
-        if (bulkWidth) bulkWidth.addEventListener('input', () => this.handleBulkWidthChange());
-        if (bulkHeight) bulkHeight.addEventListener('input', () => this.handleBulkHeightChange());
-        
-        paperSize.addEventListener('change', (e) => {
-            this.handlePaperSizeChange(e);
-            this.handleSettingsChange();
-        });
-        paperOrientation.addEventListener('change', (e) => {
-            this.handleOrientationChange(e);
-            this.handleSettingsChange();
-        });
+        paperSize.addEventListener('change', (e) => this.handlePaperSizeChange(e));
+        paperOrientation.addEventListener('change', (e) => this.handleOrientationChange(e));
         
         // Drag & Drop events
         fileUpload.addEventListener('dragover', (e) => this.handleDragOver(e));
@@ -185,73 +38,17 @@ class FitPrint {
         paperWidth.addEventListener('input', () => {
             this.validateAllImages();
             this.checkForCustomSize();
-            this.handleSettingsChange();
         });
         paperHeight.addEventListener('input', () => {
             this.validateAllImages();
             this.checkForCustomSize();
-            this.handleSettingsChange();
         });
-        outerMargin.addEventListener('input', () => {
-            this.validateAllImages();
-            this.handleSettingsChange();
-        });
-        
-        // Add keyboard event listeners for shift detection visual feedback
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Shift') {
-                document.body.classList.add('shift-selecting');
-            }
-        });
-        
-        document.addEventListener('keyup', (e) => {
-            if (e.key === 'Shift') {
-                document.body.classList.remove('shift-selecting');
-            }
-        });
+        outerMargin.addEventListener('input', () => this.validateAllImages());
     }
 
     initializeTheme() {
         const savedTheme = localStorage.getItem('fitprint-theme') || 'light';
         this.setTheme(savedTheme);
-    }
-
-    // Show/hide loading overlay
-    showLoading(message = 'Processing images...') {
-        const overlay = document.getElementById('loadingOverlay');
-        const messageElement = overlay.querySelector('p');
-        messageElement.textContent = message;
-        overlay.classList.remove('hidden');
-    }
-
-    hideLoading() {
-        const overlay = document.getElementById('loadingOverlay');
-        overlay.classList.add('hidden');
-    }
-
-    // Handle settings changes with regeneration
-    async handleSettingsChange() {
-        if (this.images.length > 0) {
-            // Debounce rapid changes
-            clearTimeout(this.settingsTimeout);
-            this.settingsTimeout = setTimeout(() => {
-                this.generateLayoutWithLoading();
-            }, 500);
-        }
-    }
-
-    // Generate layout with loading screen
-    async generateLayoutWithLoading() {
-        this.showLoading('Generating optimal layout...');
-        
-        // Small delay to ensure loading screen shows
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        try {
-            await this.generateLayout();
-        } finally {
-            this.hideLoading();
-        }
     }
 
     toggleTheme() {
@@ -352,7 +149,78 @@ class FitPrint {
         paperSizeSelect.value = matchingSize;
     }
 
-    // Removed applyScaling function - scaling functionality removed for simplicity
+    applyScaling(images, printableWidth, printableHeight, scaleMode, minSize, maxSize) {
+        return images.map(img => {
+            let newWidth = img.width;
+            let newHeight = img.height;
+            const aspectRatio = img.aspectRatio;
+            
+            // Calculate current size constraints
+            const currentMaxDim = Math.max(newWidth, newHeight);
+            const currentMinDim = Math.min(newWidth, newHeight);
+            
+            // Apply scaling based on mode
+            switch (scaleMode) {
+                case 'down':
+                    // Scale down if too large
+                    if (newWidth > printableWidth || newHeight > printableHeight) {
+                        const scale = Math.min(printableWidth / newWidth, printableHeight / newHeight);
+                        newWidth *= scale;
+                        newHeight *= scale;
+                    }
+                    // Also respect max size limit
+                    if (currentMaxDim > maxSize) {
+                        const scale = maxSize / currentMaxDim;
+                        newWidth *= scale;
+                        newHeight *= scale;
+                    }
+                    break;
+                    
+                case 'up':
+                    // Scale up if too small
+                    if (currentMinDim < minSize) {
+                        const scale = minSize / currentMinDim;
+                        newWidth *= scale;
+                        newHeight *= scale;
+                    }
+                    break;
+                    
+                case 'both':
+                    // Scale to optimal size within constraints
+                    let targetSize = Math.min(printableWidth, printableHeight) * 0.3; // 30% of printable area
+                    targetSize = Math.max(minSize, Math.min(maxSize, targetSize));
+                    
+                    if (aspectRatio >= 1) { // Landscape or square
+                        newWidth = targetSize;
+                        newHeight = targetSize / aspectRatio;
+                    } else { // Portrait
+                        newHeight = targetSize;
+                        newWidth = targetSize * aspectRatio;
+                    }
+                    break;
+            }
+            
+            // Ensure minimum size
+            if (Math.min(newWidth, newHeight) < minSize) {
+                const scale = minSize / Math.min(newWidth, newHeight);
+                newWidth *= scale;
+                newHeight *= scale;
+            }
+            
+            // Ensure maximum size
+            if (Math.max(newWidth, newHeight) > maxSize) {
+                const scale = maxSize / Math.max(newWidth, newHeight);
+                newWidth *= scale;
+                newHeight *= scale;
+            }
+            
+            return {
+                ...img,
+                width: newWidth,
+                height: newHeight
+            };
+        });
+    }
 
     validateImageSizes(printableWidth, printableHeight, imagesToValidate = null) {
         const images = imagesToValidate || this.images;
@@ -471,9 +339,6 @@ class FitPrint {
         event.target.value = '';
     }
 
-    // Add test images for debugging
-    // Removed addTestImages function - no longer needed
-
     renderImagePreview(imageData) {
         const preview = document.getElementById('imagePreview');
         const item = document.createElement('div');
@@ -491,25 +356,17 @@ class FitPrint {
         config.className = 'image-config';
         config.dataset.id = imageData.id;
         config.innerHTML = `
-            <input type="checkbox" class="select-checkbox" data-image-id="${imageData.id}">
             <img src="${imageData.dataUrl}" alt="${imageData.name}">
             <div class="config-inputs">
                 <div>
                     <label>Width (mm):</label>
-                    <div class="input-with-lock">
-                        <input type="number" value="${imageData.width.toFixed(1)}" min="1" step="0.1" 
-                               onchange="fitPrint.updateImageSize(${imageData.id}, 'width', this.value)"
-                               data-type="width">
-                        <button class="ratio-lock-btn ${this.ratioLocked ? 'active' : ''}" 
-                                onclick="fitPrint.toggleImageRatioLock(${imageData.id})" 
-                                title="Lock aspect ratio">🔒</button>
-                    </div>
+                    <input type="number" value="${imageData.width.toFixed(1)}" min="1" step="0.1" 
+                           onchange="fitPrint.updateImageSize(${imageData.id}, 'width', this.value)">
                 </div>
                 <div>
                     <label>Height (mm):</label>
                     <input type="number" value="${imageData.height.toFixed(1)}" min="1" step="0.1" 
-                           onchange="fitPrint.updateImageSize(${imageData.id}, 'height', this.value)"
-                           data-type="height">
+                           onchange="fitPrint.updateImageSize(${imageData.id}, 'height', this.value)">
                 </div>
                 <div>
                     <label>Copies:</label>
@@ -517,7 +374,7 @@ class FitPrint {
                            onchange="fitPrint.updateImageSize(${imageData.id}, 'copies', this.value)">
                 </div>
             </div>
-            <button class="remove-btn" onclick="fitPrint.removeImage(${imageData.id})">✕ Remove</button>
+            <button class="remove-btn" onclick="fitPrint.removeImage(${imageData.id})">Remove</button>
         `;
         list.appendChild(config);
     }
@@ -526,28 +383,23 @@ class FitPrint {
         const image = this.images.find(img => img.id === id);
         if (image) {
             const numValue = parseFloat(value);
-            const config = document.querySelector(`[data-id="${id}"]`);
-            const ratioBtn = config.querySelector('.ratio-lock-btn');
-            const isRatioLocked = ratioBtn && ratioBtn.classList.contains('active');
             
             if (property === 'width') {
                 image.width = numValue;
-                if (isRatioLocked) {
-                    // Maintain aspect ratio
-                    image.height = numValue / image.aspectRatio;
-                    // Update the height input field
-                    const heightInput = config.querySelector('input[data-type="height"]');
-                    heightInput.value = image.height.toFixed(1);
-                }
+                // Maintain aspect ratio
+                image.height = numValue / image.aspectRatio;
+                // Update the height input field
+                const config = document.querySelector(`[data-id="${id}"]`);
+                const heightInput = config.querySelector('input[onchange*="height"]');
+                heightInput.value = image.height.toFixed(1);
             } else if (property === 'height') {
                 image.height = numValue;
-                if (isRatioLocked) {
-                    // Maintain aspect ratio
-                    image.width = numValue * image.aspectRatio;
-                    // Update the width input field
-                    const widthInput = config.querySelector('input[data-type="width"]');
-                    widthInput.value = image.width.toFixed(1);
-                }
+                // Maintain aspect ratio
+                image.width = numValue * image.aspectRatio;
+                // Update the width input field
+                const config = document.querySelector(`[data-id="${id}"]`);
+                const widthInput = config.querySelector('input[onchange*="width"]');
+                widthInput.value = image.width.toFixed(1);
             } else {
                 image[property] = numValue;
             }
@@ -606,210 +458,7 @@ class FitPrint {
         });
     }
 
-    // Bulk edit functions
-    toggleImageSelection(id, checked, event = null) {
-        console.log('toggleImageSelection called:', { 
-            id, 
-            checked, 
-            hasEvent: !!event, 
-            shiftKey: event?.shiftKey,
-            lastSelectedIndex: this.lastSelectedIndex 
-        });
-        
-        const config = document.querySelector(`[data-id="${id}"]`);
-        if (!config) return;
-
-        // Get all image configs to determine indices
-        const allConfigs = Array.from(document.querySelectorAll('.image-config'));
-        const currentIndex = allConfigs.indexOf(config);
-        
-        console.log('Current index:', currentIndex);
-
-        // Handle shift-click for range selection
-        if (event && event.shiftKey && this.lastSelectedIndex !== -1 && this.lastSelectedIndex !== currentIndex) {
-            console.log('🎯 SHIFT-CLICK RANGE SELECTION TRIGGERED!');
-            const startIndex = Math.min(this.lastSelectedIndex, currentIndex);
-            const endIndex = Math.max(this.lastSelectedIndex, currentIndex);
-            
-            console.log('Selecting range:', startIndex, 'to', endIndex);
-            
-            // Select all items in the range
-            for (let i = startIndex; i <= endIndex; i++) {
-                const configToSelect = allConfigs[i];
-                const checkbox = configToSelect.querySelector('.select-checkbox');
-                if (configToSelect && checkbox) {
-                    // Force visual update
-                    configToSelect.classList.add('selected');
-                    checkbox.checked = true;
-                    // Trigger visual feedback immediately
-                    configToSelect.style.transition = 'all 0.2s ease';
-                    configToSelect.style.transform = 'scale(1.02)';
-                    setTimeout(() => {
-                        configToSelect.style.transform = '';
-                    }, 200);
-                    console.log('✓ Selected item at index', i);
-                }
-            }
-        } else {
-            // Normal single selection
-            console.log('Normal single selection for checkbox state:', checked);
-            if (checked) {
-                config.classList.add('selected');
-                // Visual feedback for selection
-                config.style.transition = 'all 0.2s ease';
-                config.style.transform = 'scale(1.02)';
-                setTimeout(() => {
-                    config.style.transform = '';
-                }, 200);
-            } else {
-                config.classList.remove('selected');
-            }
-        }
-
-        // Update last selected index if this item is being selected
-        if (checked || (event && event.shiftKey)) {
-            this.lastSelectedIndex = currentIndex;
-            console.log('Updated lastSelectedIndex to:', this.lastSelectedIndex);
-        }
-    }
-
-    selectAllImages() {
-        const checkboxes = document.querySelectorAll('.select-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = true;
-            this.toggleImageSelection(checkbox.closest('.image-config').dataset.id, true);
-        });
-        // Reset last selected index after selecting all
-        this.lastSelectedIndex = -1;
-    }
-
-    selectNoImages() {
-        const checkboxes = document.querySelectorAll('.select-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = false;
-            this.toggleImageSelection(checkbox.closest('.image-config').dataset.id, false);
-        });
-        // Reset last selected index after deselecting all
-        this.lastSelectedIndex = -1;
-    }
-
-    toggleRatioLock() {
-        this.ratioLocked = !this.ratioLocked;
-        const lockBtn = document.getElementById('lockRatio');
-        if (lockBtn) {
-            if (this.ratioLocked) {
-                lockBtn.classList.add('active');
-            } else {
-                lockBtn.classList.remove('active');
-            }
-        }
-    }
-
-    toggleImageRatioLock(id) {
-        const config = document.querySelector(`[data-id="${id}"]`);
-        const lockBtn = config.querySelector('.ratio-lock-btn');
-        if (lockBtn) {
-            lockBtn.classList.toggle('active');
-        }
-    }
-
-    handleBulkWidthChange() {
-        if (!this.ratioLocked) return;
-        
-        const widthInput = document.getElementById('bulkWidth');
-        const heightInput = document.getElementById('bulkHeight');
-        const width = parseFloat(widthInput.value);
-        
-        if (width && this.lastAspectRatio) {
-            const height = width / this.lastAspectRatio;
-            heightInput.value = height.toFixed(1);
-        }
-    }
-
-    handleBulkHeightChange() {
-        if (!this.ratioLocked) return;
-        
-        const widthInput = document.getElementById('bulkWidth');
-        const heightInput = document.getElementById('bulkHeight');
-        const height = parseFloat(heightInput.value);
-        
-        if (height && this.lastAspectRatio) {
-            const width = height * this.lastAspectRatio;
-            widthInput.value = width.toFixed(1);
-        }
-    }
-
-    applyBulkChanges() {
-        const selectedConfigs = document.querySelectorAll('.image-config.selected');
-        const bulkWidth = document.getElementById('bulkWidth').value;
-        const bulkHeight = document.getElementById('bulkHeight').value;
-        const bulkCopies = document.getElementById('bulkCopies').value;
-        
-        if (selectedConfigs.length === 0) {
-            alert('Please select at least one image to modify.');
-            return;
-        }
-        
-        selectedConfigs.forEach(config => {
-            const id = parseInt(config.dataset.id);
-            const image = this.images.find(img => img.id === id);
-            
-            if (image) {
-                if (bulkWidth) {
-                    image.width = parseFloat(bulkWidth);
-                    if (this.ratioLocked && bulkHeight) {
-                        image.height = parseFloat(bulkHeight);
-                    } else if (this.ratioLocked) {
-                        image.height = image.width / image.aspectRatio;
-                    }
-                }
-                if (bulkHeight && !this.ratioLocked) {
-                    image.height = parseFloat(bulkHeight);
-                }
-                if (bulkCopies) {
-                    image.copies = parseInt(bulkCopies);
-                }
-                
-                // Update the UI
-                const widthInput = config.querySelector('input[data-type="width"]');
-                const heightInput = config.querySelector('input[data-type="height"]');
-                const copiesInput = config.querySelector('input[onchange*="copies"]');
-                
-                if (widthInput) widthInput.value = image.width.toFixed(1);
-                if (heightInput) heightInput.value = image.height.toFixed(1);
-                if (copiesInput && bulkCopies) copiesInput.value = image.copies;
-                
-                // Validate the image
-                this.validateImageInRealTime(image);
-            }
-        });
-        
-        // Clear bulk inputs
-        document.getElementById('bulkWidth').value = '';
-        document.getElementById('bulkHeight').value = '';
-        document.getElementById('bulkCopies').value = '';
-        
-        console.log(`Applied bulk changes to ${selectedConfigs.length} images`);
-    }
-
-    toggleBulkEdit() {
-        const bulkControls = document.getElementById('bulkControls');
-        const toggleIcon = document.getElementById('bulkToggleIcon');
-        
-        if (bulkControls && toggleIcon) {
-            const isCollapsed = bulkControls.classList.contains('collapsed');
-            
-            if (isCollapsed) {
-                bulkControls.classList.remove('collapsed');
-                toggleIcon.classList.remove('collapsed');
-            } else {
-                bulkControls.classList.add('collapsed');
-                toggleIcon.classList.add('collapsed');
-            }
-        }
-    }
-
-    async generateLayout() {
+    generateLayout() {
         console.log('Generate Layout clicked');
         console.log('Images array:', this.images);
         
@@ -818,23 +467,19 @@ class FitPrint {
             return;
         }
 
-        // Small delay for loading screen visibility
-        await new Promise(resolve => setTimeout(resolve, 50));
-
         const paperWidth = parseFloat(document.getElementById('paperWidth').value);
         const paperHeight = parseFloat(document.getElementById('paperHeight').value);
         const outerMargin = parseFloat(document.getElementById('outerMargin').value);
         const innerMargin = parseFloat(document.getElementById('innerMargin').value);
+        const imageSpacing = parseFloat(document.getElementById('imageSpacing').value) || 0;
         const packingStrategy = document.getElementById('packingStrategy').value;
+        const scaleToFit = document.getElementById('scaleToFit').value;
+        const minImageSize = parseFloat(document.getElementById('minImageSize').value);
+        const maxImageSize = parseFloat(document.getElementById('maxImageSize').value);
         const allowRotation = document.getElementById('rotateImages').checked;
         const orientation = document.getElementById('paperOrientation').value;
 
-        console.log('Paper settings:', { paperWidth, paperHeight, outerMargin, innerMargin, packingStrategy, orientation });
-        
-        console.log('=== SIMPLIFIED MARGIN SYSTEM ===');
-        console.log('• Outer Margin:', outerMargin + 'mm - space from page edge to content area');
-        console.log('• Image Spacing (Inner Margin):', innerMargin + 'mm - space between images');
-        console.log('==================================');
+        console.log('Paper settings:', { paperWidth, paperHeight, outerMargin, innerMargin, imageSpacing, packingStrategy, scaleToFit, orientation });
 
         // Auto-orient paper if needed
         let finalWidth = paperWidth;
@@ -858,8 +503,14 @@ class FitPrint {
 
         console.log('Printable area:', { printableWidth, printableHeight });
 
-        // Validate that all images can fit on the paper (no scaling)
-        const oversizedImages = this.validateImageSizes(printableWidth, printableHeight, this.images);
+        // Apply scaling if requested
+        let processedImages = [...this.images];
+        if (scaleToFit !== 'none') {
+            processedImages = this.applyScaling(processedImages, printableWidth, printableHeight, scaleToFit, minImageSize, maxImageSize);
+        }
+
+        // Validate that all images can fit on the paper
+        const oversizedImages = this.validateImageSizes(printableWidth, printableHeight, processedImages);
         if (oversizedImages.length > 0) {
             console.log('Oversized images found:', oversizedImages);
             this.showOversizedWarning(oversizedImages, printableWidth, printableHeight);
@@ -868,7 +519,7 @@ class FitPrint {
 
         // Expand images based on copies
         const allImages = [];
-        this.images.forEach(img => {
+        processedImages.forEach(img => {
             for (let i = 0; i < img.copies; i++) {
                 allImages.push({
                     ...img,
@@ -880,14 +531,12 @@ class FitPrint {
 
         console.log('All images for packing:', allImages);
 
-        // Apply smart packing algorithm with simplified settings
+        // Apply smart packing algorithm with new settings
         try {
-            console.log('=== SIMPLIFIED PACKING ===');
-            console.log('• Using innerMargin (' + innerMargin + 'mm) as image spacing');
-            console.log('==========================');
+            const effectiveMargin = innerMargin + imageSpacing;
             
             // Use the new ultra-efficient packing algorithm
-            this.layout = this.packImagesUltraEfficient(allImages, printableWidth, printableHeight, innerMargin, allowRotation);
+            this.layout = this.packImagesUltraEfficient(allImages, printableWidth, printableHeight, effectiveMargin, allowRotation);
             
             console.log('Layout generated:', this.layout);
             console.log('Rotation allowed:', allowRotation);
@@ -958,227 +607,78 @@ class FitPrint {
     }
 
     packImagesUltraEfficient(allImages, pageWidth, pageHeight, margin, allowRotation = false) {
-        console.log('=== ULTRA-EFFICIENT 2D BIN PACKING STARTED ===');
+        console.log('Ultra-efficient packing algorithm started with proper 2D bin packing');
         console.log('Page dimensions:', pageWidth, 'x', pageHeight, 'Margin:', margin);
         console.log('Images to pack:', allImages.length);
-        console.log('Rotation allowed:', allowRotation);
         
         if (!allImages.length) return [];
         
         const pages = [];
         const imagesToPack = [...allImages]; // Copy array to avoid mutating original
         
-        // Sort images by area (largest first) for better packing efficiency
-        imagesToPack.sort((a, b) => (b.width * b.height) - (a.width * a.height));
-        
         while (imagesToPack.length > 0) {
-            console.log(`\n--- Starting new page, ${imagesToPack.length} images remaining ---`);
-            const pageImages = this.packPageOptimal(imagesToPack, pageWidth, pageHeight, margin, allowRotation);
+            const pageImages = this.packPageWithMultipleHeuristics(imagesToPack, pageWidth, pageHeight, margin, allowRotation);
             
             if (pageImages.length === 0) {
-                console.warn('Could not place any images on page, stopping to avoid infinite loop');
+                // If we can't fit even one image, something is wrong - break to avoid infinite loop
+                console.warn('Could not place any images on page, stopping');
                 break;
             } else {
                 pages.push({ images: pageImages });
-                console.log(`Page ${pages.length} completed with ${pageImages.length} images`);
-                
                 // Remove packed images from the list
                 for (const packedImage of pageImages) {
-                    const index = imagesToPack.findIndex(img => img.id === packedImage.id && img.copyIndex === packedImage.copyIndex);
-                    if (index >= 0) {
-                        imagesToPack.splice(index, 1);
-                    }
+                    const index = imagesToPack.findIndex(img => img.id === packedImage.id);
+                    if (index >= 0) imagesToPack.splice(index, 1);
                 }
             }
         }
         
-        console.log(`=== PACKING COMPLETE: ${pages.length} pages for ${allImages.length} images ===`);
+        console.log(`Ultra-efficient packing complete: ${pages.length} pages for ${allImages.length} images`);
         return pages;
     }
     
-    packPageOptimal(images, pageWidth, pageHeight, imageSpacing, allowRotation) {
-        console.log(`\n🎯 OPTIMAL PAGE PACKING: ${images.length} images`);
-        console.log(`Available space: ${pageWidth} x ${pageHeight}mm`);
+    packPageWithMultipleHeuristics(images, pageWidth, pageHeight, margin, allowRotation) {
+        const availableWidth = pageWidth - 2 * margin;
+        const availableHeight = pageHeight - 2 * margin;
         
-        if (!images.length) return [];
+        console.log(`Packing ${images.length} images with multiple heuristics`);
         
-        // Use Bottom-Left-Fill heuristic with rotation support
-        const packedImages = this.bottomLeftFillPacking(images, pageWidth, pageHeight, imageSpacing, allowRotation);
-        
-        console.log(`✅ Packed ${packedImages.length} images using Bottom-Left-Fill`);
-        return packedImages;
-    }
-
-    bottomLeftFillPacking(images, pageWidth, pageHeight, imageSpacing, allowRotation) {
-        console.log(`\n🔄 BOTTOM-LEFT-FILL PACKING`);
-        console.log(`Page: ${pageWidth}x${pageHeight}mm, Image Spacing: ${imageSpacing}mm`);
-        
-        const usableWidth = pageWidth;
-        const usableHeight = pageHeight;
-        const placed = [];
-        const remaining = [...images];
-        
-        console.log(`Image spacing: ${imageSpacing}mm`);
-        
-        // Sort by area (largest first) for better packing
-        remaining.sort((a, b) => (b.width * b.height) - (a.width * a.height));
-        
-        while (remaining.length > 0) {
-            let bestPlacement = null;
-            let bestImageIndex = -1;
-            
-            // Try to place each remaining image
-            for (let i = 0; i < remaining.length; i++) {
-                const image = remaining[i];
-                const placement = this.findOptimalPosition(image, placed, usableWidth, usableHeight, imageSpacing, allowRotation);
-                
-                if (placement) {
-                    // Prefer placements that are lower and more to the left
-                    const score = -(placement.y * 1000 + placement.x);
-                    
-                    if (!bestPlacement || score > bestPlacement.score) {
-                        bestPlacement = { ...placement, score, imageIndex: i };
-                        bestImageIndex = i;
-                    }
-                }
-            }
-            
-            if (!bestPlacement) {
-                console.log(`❌ No more images can fit. Placed ${placed.length}/${images.length}`);
-                break;
-            }
-            
-            // Place the best image
-            const image = remaining[bestImageIndex];
-            placed.push({
-                ...image,
-                x: bestPlacement.x,
-                y: bestPlacement.y,
-                width: bestPlacement.width,
-                height: bestPlacement.height,
-                rotated: bestPlacement.rotated || false
-            });
-            
-            console.log(`✓ Placed ${image.name} at (${bestPlacement.x}, ${bestPlacement.y}) size=${bestPlacement.width}x${bestPlacement.height} rotated=${bestPlacement.rotated}`);
-            
-            // Remove from remaining
-            remaining.splice(bestImageIndex, 1);
-        }
-        
-        console.log(`📊 Final: ${placed.length} placed, ${remaining.length} remaining`);
-        return placed;
-    }
-
-    findOptimalPosition(image, placedImages, usableWidth, usableHeight, spacing, allowRotation) {
-        const orientations = [
-            { width: image.width, height: image.height, rotated: false }
+        // Try multiple heuristics and keep the best result
+        const strategies = [
+            () => this.packWithMaxRects(images, availableWidth, availableHeight, margin, 'BSSF', allowRotation),
+            () => this.packWithMaxRects(images, availableWidth, availableHeight, margin, 'BAF', allowRotation),
+            () => this.packWithSkyline(images, availableWidth, availableHeight, margin, allowRotation)
         ];
         
-        if (allowRotation && image.width !== image.height) {
-            orientations.push({ width: image.height, height: image.width, rotated: true });
-        }
+        let bestLayout = [];
+        let bestScore = -1;
         
-        let bestPosition = null;
-        
-        for (const orientation of orientations) {
-            // Generate a comprehensive grid of possible positions
-            const candidates = this.generateAllValidPositions(placedImages, usableWidth, usableHeight, orientation.width, orientation.height, spacing);
-            
-            for (const candidate of candidates) {
-                if (this.isPositionValid(candidate.x, candidate.y, orientation.width, orientation.height, placedImages, spacing, usableWidth, usableHeight)) {
-                    // Score: prefer lower positions, then leftmost
-                    const score = -(candidate.y * 1000 + candidate.x);
-                    
-                    if (!bestPosition || score > bestPosition.score) {
-                        bestPosition = {
-                            x: candidate.x,
-                            y: candidate.y,
-                            width: orientation.width,
-                            height: orientation.height,
-                            rotated: orientation.rotated,
-                            score
-                        };
-                    }
+        for (const strategy of strategies) {
+            try {
+                const layout = strategy();
+                const score = layout.length; // Maximize items placed
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestLayout = layout;
                 }
+            } catch (error) {
+                console.warn('Strategy failed:', error);
             }
         }
         
-        return bestPosition;
-    }
-
-    generateAllValidPositions(placedImages, usableWidth, usableHeight, itemWidth, itemHeight, spacing) {
-        const candidates = [];
-        
-        // If no images placed yet, start at origin
-        if (placedImages.length === 0) {
-            candidates.push({ x: 0, y: 0 });
-            return candidates;
-        }
-        
-        // Generate positions based on edges of placed images
-        const importantX = new Set([0]); // Always include left edge
-        const importantY = new Set([0]); // Always include top edge
-        
-        for (const placed of placedImages) {
-            // Important X positions: left edge, right edge + spacing
-            importantX.add(placed.x);
-            importantX.add(placed.x + placed.width + spacing);
-            
-            // Important Y positions: top edge, bottom edge + spacing
-            importantY.add(placed.y);
-            importantY.add(placed.y + placed.height + spacing);
-        }        // Convert to sorted arrays and filter valid positions
-        const validXPositions = Array.from(importantX)
-            .filter(x => x >= 0 && x + itemWidth <= usableWidth)
-            .sort((a, b) => a - b);
-            
-        const validYPositions = Array.from(importantY)
-            .filter(y => y >= 0 && y + itemHeight <= usableHeight)
-            .sort((a, b) => a - b);
-        
-        // Generate all combinations of valid X,Y positions
-        for (const x of validXPositions) {
-            for (const y of validYPositions) {
-                candidates.push({ x, y });
+        // Try two-pass ordering strategy for better results
+        if (bestLayout.length < images.length * 0.8) { // If we didn't place most items
+            const twoPassLayout = this.packWithTwoPassOrdering(images, availableWidth, availableHeight, margin, allowRotation);
+            if (twoPassLayout.length > bestLayout.length) {
+                bestLayout = twoPassLayout;
             }
         }
         
-        console.log(`Generated ${candidates.length} candidate positions for ${itemWidth}x${itemHeight}mm item`);
-        return candidates;
+        console.log(`Best strategy placed ${bestLayout.length} out of ${images.length} images`);
+        return bestLayout;
     }
-
-    isPositionValid(x, y, width, height, placedImages, spacing, usableWidth, usableHeight) {
-        // Check bounds
-        if (x < 0 || y < 0 || x + width > usableWidth || y + height > usableHeight) {
-            return false;
-        }
-        
-        const newRect = { x, y, width, height };
-        
-        // Check collision with all placed images (with spacing)
-        for (const placed of placedImages) {
-            // Only add spacing if spacing > 0 to avoid making rectangles too big
-            const spacingToUse = spacing > 0 ? spacing : 0;
-            const placedRect = {
-                x: placed.x - spacingToUse,
-                y: placed.y - spacingToUse,
-                width: placed.width + (2 * spacingToUse),
-                height: placed.height + (2 * spacingToUse)
-            };
-            
-            if (this.rectanglesOverlap(newRect, placedRect)) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-
-    // Removed old functions - replaced with more efficient optimal positioning
-
-    // Removed old grid-based functions that were causing layout issues
-    // The new bottom-left-fill algorithm provides optimal 2D bin packing
-
+    
     packWithMaxRects(images, width, height, margin, heuristic, allowRotation) {
         const freeRects = [{ x: 0, y: 0, width: width, height: height }];
         const placedItems = [];
@@ -2034,15 +1534,13 @@ class FitPrint {
             pageDiv.className = 'page-preview';
             
             const aspectRatio = paperWidth / paperHeight;
-            // Dynamic sizing based on container width and aspect ratio
-            const containerWidth = Math.min(300, window.innerWidth * 0.25); // Max 300px or 25% of screen width
-            const previewWidth = containerWidth;
+            const previewWidth = 400;
             const previewHeight = previewWidth / aspectRatio;
             const scale = previewWidth / paperWidth;
 
             pageDiv.innerHTML = `
                 <div class="page-title">Page ${index + 1}</div>
-                <div class="page-content" style="width: ${previewWidth}px; height: ${previewHeight}px; overflow: hidden; position: relative;">
+                <div class="page-content" style="width: ${previewWidth}px; height: ${previewHeight}px;">
                 </div>
             `;
 
@@ -2051,9 +1549,8 @@ class FitPrint {
             page.images.forEach(img => {
                 const imgDiv = document.createElement('div');
                 imgDiv.className = 'placed-image';
-                // Add outer margin to the positions since packing was done on printable area
-                imgDiv.style.left = `${(img.x + outerMargin) * scale}px`;
-                imgDiv.style.top = `${(img.y + outerMargin) * scale}px`;
+                imgDiv.style.left = `${(outerMargin + img.x) * scale}px`;
+                imgDiv.style.top = `${(outerMargin + img.y) * scale}px`;
                 imgDiv.style.width = `${img.width * scale}px`;
                 imgDiv.style.height = `${img.height * scale}px`;
                 imgDiv.textContent = `${img.name}${img.rotated ? ' (R)' : ''}`;
@@ -2122,8 +1619,8 @@ class FitPrint {
                     pdf.addImage(
                         imageData,
                         'JPEG',
-                        img.x + outerMargin,  // Add outer margin to position
-                        img.y + outerMargin,  // Add outer margin to position
+                        outerMargin + img.x,
+                        outerMargin + img.y,
                         img.width,
                         img.height,
                         undefined,
