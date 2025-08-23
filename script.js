@@ -9,6 +9,9 @@ class FitPrint {
         this.initializeBulkEdit();
         this.initializeNavigation();
         this.initializeImageModal();
+        
+        // Initialize quick selection visibility
+        this.updateQuickSelectionVisibility();
     }
 
     initializeBulkEdit() {
@@ -2809,7 +2812,46 @@ class FitPrint {
                 imgDiv.style.top = `${(img.y + outerMargin) * scale}px`;
                 imgDiv.style.width = `${img.width * scale}px`;
                 imgDiv.style.height = `${img.height * scale}px`;
-                imgDiv.textContent = `${img.name}${img.rotated ? ' (R)' : ''}`;
+                
+                // Create display text and full text for tooltip
+                const fullText = `${img.name}${img.rotated ? ' (R)' : ''}`;
+                const scaledWidth = img.width * scale;
+                const scaledHeight = img.height * scale;
+                
+                // Add size class for appropriate styling
+                if (scaledWidth < 20 || scaledHeight < 15) {
+                    imgDiv.classList.add('size-micro');
+                } else if (scaledWidth < 35 || scaledHeight < 20) {
+                    imgDiv.classList.add('size-tiny');
+                } else if (scaledWidth < 60 || scaledHeight < 30) {
+                    imgDiv.classList.add('size-small');
+                }
+                
+                // For very small images, show abbreviated text
+                let displayText = fullText;
+                if (scaledWidth < 20 || scaledHeight < 15) {
+                    // Micro image - no text (handled by CSS)
+                    displayText = '';
+                } else if (scaledWidth < 35 || scaledHeight < 20) {
+                    // Tiny image - show just initials or very short version
+                    const nameParts = img.name.split(/[-._]/);
+                    if (nameParts.length > 1) {
+                        displayText = nameParts.map(part => part.charAt(0)).join('').toUpperCase();
+                    } else {
+                        displayText = img.name.substring(0, 2) + (img.name.length > 2 ? '.' : '');
+                    }
+                    if (img.rotated) displayText += 'R';
+                } else if (scaledWidth < 80 || scaledHeight < 30) {
+                    // Small image - show shortened filename
+                    const maxLength = Math.floor(scaledWidth / 7); // Roughly 7px per character
+                    if (fullText.length > maxLength) {
+                        displayText = img.name.substring(0, Math.max(3, maxLength - 3)) + '...';
+                        if (img.rotated) displayText += ' (R)';
+                    }
+                }
+                
+                imgDiv.textContent = displayText;
+                imgDiv.title = fullText; // Tooltip with full name
                 pageContent.appendChild(imgDiv);
             });
 
