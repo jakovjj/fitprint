@@ -266,6 +266,18 @@ class FitPrint {
         fileUpload.addEventListener('drop', (e) => this.handleDrop(e));
         fileUpload.addEventListener('click', () => imageInput.click());
         
+        // Clipboard paste events
+        document.addEventListener('paste', (e) => this.handlePaste(e));
+        
+        // Make file upload area focusable for better paste experience
+        fileUpload.setAttribute('tabindex', '0');
+        fileUpload.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                // Let the paste event handle this
+                e.preventDefault();
+            }
+        });
+        
         // Add real-time validation when paper settings change
         paperWidth.addEventListener('input', () => {
             this.validateAllImages();
@@ -495,6 +507,123 @@ class FitPrint {
         const files = Array.from(event.dataTransfer.files);
         if (files.length > 0) {
             this.processFiles(files);
+        }
+    }
+
+    handlePaste(event) {
+        console.log('📋 Paste event detected');
+        
+        // Only handle paste if no input field is focused
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+            console.log('📋 Ignoring paste - input field is focused');
+            return;
+        }
+        
+        const clipboardData = event.clipboardData || window.clipboardData;
+        if (!clipboardData) {
+            console.log('📋 No clipboard data available');
+            return;
+        }
+        
+        const items = Array.from(clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        
+        if (imageItems.length === 0) {
+            console.log('📋 No image data found in clipboard');
+            return;
+        }
+        
+        event.preventDefault();
+        console.log(`📋 Found ${imageItems.length} image(s) in clipboard`);
+        
+        // Show visual feedback
+        this.showPasteProgress();
+        
+        const promises = imageItems.map((item, index) => this.processClipboardImage(item, index));
+        
+        Promise.all(promises).then(() => {
+            this.hidePasteProgress();
+            console.log('📋 All clipboard images processed successfully');
+        }).catch(error => {
+            this.hidePasteProgress();
+            console.error('📋 Error processing clipboard images:', error);
+            alert('Error processing clipboard images: ' + error.message);
+        });
+    }
+
+    async processClipboardImage(item, index) {
+        return new Promise((resolve, reject) => {
+            const blob = item.getAsFile();
+            if (!blob) {
+                reject(new Error('Could not get image data from clipboard'));
+                return;
+            }
+            
+            // Generate a filename based on timestamp and index
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+            const extension = blob.type.split('/')[1] || 'png';
+            const filename = `clipboard-image-${timestamp}-${index + 1}.${extension}`;
+            
+            // Create a File object with the blob data
+            const file = new File([blob], filename, { type: blob.type });
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Calculate aspect ratio and set default size
+                    const aspectRatio = img.width / img.height;
+                    const defaultWidth = 50; // default width in mm
+                    const defaultHeight = defaultWidth / aspectRatio;
+                    
+                    const imageData = {
+                        id: Date.now() + index + Math.random(),
+                        file: file,
+                        dataUrl: e.target.result,
+                        width: defaultWidth,
+                        height: defaultHeight,
+                        copies: 1,
+                        name: filename,
+                        originalWidth: img.width,
+                        originalHeight: img.height,
+                        aspectRatio: aspectRatio
+                    };
+
+                    this.images.push(imageData);
+                    this.renderImageConfig(imageData);
+                    resolve();
+                };
+                img.onerror = () => reject(new Error('Failed to load image from clipboard'));
+                img.src = e.target.result;
+            };
+            reader.onerror = () => reject(new Error('Failed to read clipboard image data'));
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    showPasteProgress() {
+        const fileUpload = document.querySelector('.file-upload');
+        if (fileUpload) {
+            fileUpload.classList.add('pasting');
+            
+            // Add temporary visual feedback
+            const pasteIndicator = document.createElement('div');
+            pasteIndicator.className = 'paste-indicator';
+            pasteIndicator.innerHTML = '📋 Processing clipboard images...';
+            fileUpload.appendChild(pasteIndicator);
+        }
+    }
+
+    hidePasteProgress() {
+        const fileUpload = document.querySelector('.file-upload');
+        if (fileUpload) {
+            fileUpload.classList.remove('pasting');
+            
+            const pasteIndicator = fileUpload.querySelector('.paste-indicator');
+            if (pasteIndicator) {
+                pasteIndicator.remove();
+            }
         }
     }
 

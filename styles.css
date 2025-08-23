@@ -309,6 +309,52 @@ h2 {
     color: #888;
 }
 
+.paste-info {
+    font-size: 0.85rem;
+    color: #3b82f6;
+    font-style: italic;
+    margin-top: 8px !important;
+}
+
+.paste-info kbd {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #374151;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Paste progress indicator */
+.file-upload.pasting {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+    transform: scale(1.02);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
+}
+
+.paste-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    z-index: 10;
+    pointer-events: none;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
 .upload-icon {
     margin-right: 8px;
     font-size: 1.1rem;
@@ -603,8 +649,19 @@ h2 {
     user-select: none;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    position: relative;
     transition: color 0.2s ease;
+}
+
+.bulk-edit-header .toggle-icon {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.bulk-edit-header .toggle-icon.collapsed {
+    transform: translateY(-50%) rotate(-90deg);
 }
 
 .bulk-edit-header:hover {
@@ -619,7 +676,6 @@ h2 {
     border-right: 6px solid transparent;
     border-top: 8px solid #374151;
     transition: transform 0.3s ease;
-    margin-left: 8px;
 }
 
 .toggle-icon.collapsed {
@@ -1076,6 +1132,26 @@ h2 {
 
 [data-theme="dark"] .upload-formats {
     color: #888;
+}
+
+[data-theme="dark"] .paste-info {
+    color: #60a5fa;
+}
+
+[data-theme="dark"] .paste-info kbd {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+}
+
+/* Dark theme paste indicator */
+[data-theme="dark"] .file-upload.pasting {
+    border-color: #60a5fa;
+    background: rgba(96, 165, 250, 0.1);
+}
+
+[data-theme="dark"] .paste-indicator {
+    background: rgba(96, 165, 250, 0.9);
 }
 
 /* Dark mode drag & drop */
