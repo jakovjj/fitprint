@@ -250,6 +250,13 @@ class FitPrint {
         if (bulkWidth) bulkWidth.addEventListener('input', () => this.handleBulkWidthChange());
         if (bulkHeight) bulkHeight.addEventListener('input', () => this.handleBulkHeightChange());
         
+        // Quick selection controls
+        const quickSelectAllBtn = document.getElementById('quickSelectAll');
+        const quickSelectNoneBtn = document.getElementById('quickSelectNone');
+        
+        if (quickSelectAllBtn) quickSelectAllBtn.addEventListener('click', () => this.selectAllImages());
+        if (quickSelectNoneBtn) quickSelectNoneBtn.addEventListener('click', () => this.selectNoImages());
+        
         paperSize.addEventListener('change', (e) => {
             this.handlePaperSizeChange(e);
             this.handleSettingsChange();
@@ -741,6 +748,9 @@ class FitPrint {
         });
         
         list.appendChild(config);
+        
+        // Update quick selection controls visibility
+        this.updateQuickSelectionVisibility();
     }
 
     updateImageSize(id, property, value) {
@@ -1035,6 +1045,22 @@ class FitPrint {
                 countElement.textContent = selectedCount > 0 ? ` (${selectedCount} selected)` : '';
             } else {
                 console.log('📊 Selection count updated:', selectedCount, '(no UI element to display in)');
+            }
+        }
+        
+        // Update quick selection controls visibility
+        this.updateQuickSelectionVisibility();
+    }
+
+    updateQuickSelectionVisibility() {
+        const quickSelectionControls = document.getElementById('quickSelectionControls');
+        const totalImages = this.images.length;
+        
+        if (quickSelectionControls) {
+            if (totalImages > 0) {
+                quickSelectionControls.classList.remove('hidden');
+            } else {
+                quickSelectionControls.classList.add('hidden');
             }
         }
     }
