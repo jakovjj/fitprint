@@ -527,13 +527,15 @@ h2 {
 
 /* Quick Selection Controls */
 .quick-selection-controls {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-start;
-    gap: 10px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-top: 25px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    display: block;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-15px);
     max-height: 0;
     overflow: hidden;
 }
@@ -541,13 +543,48 @@ h2 {
 .quick-selection-controls:not(.hidden) {
     opacity: 1;
     transform: translateY(0);
-    max-height: 50px;
+    max-height: 100px;
 }
 
 .quick-selection-controls.hidden {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-15px);
     max-height: 0;
+}
+
+.quick-selection-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.2s ease;
+}
+
+.quick-selection-content:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+}
+
+.quick-selection-icon {
+    font-size: 1.1rem;
+    color: #6366f1;
+}
+
+.quick-selection-label {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.9rem;
+    margin-right: 8px;
+}
+
+.quick-selection-buttons {
+    display: flex;
+    gap: 8px;
 }
 
 .quick-select-btn {
@@ -556,48 +593,43 @@ h2 {
     gap: 6px;
     background: white;
     color: #374151;
-    border: 1px solid #e5e7eb;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.8rem;
+    border: 1px solid #d1d5db;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    min-width: auto;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .quick-select-btn:hover {
     background: #f9fafb;
-    border-color: #d1d5db;
+    border-color: #9ca3af;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .quick-select-btn:active {
-    background: #f3f4f6;
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.quick-select-btn.select-all {
+.quick-select-btn.select-all:hover {
+    background: #f0f9ff;
     border-color: #3b82f6;
     color: #1d4ed8;
 }
 
-.quick-select-btn.select-all:hover {
-    background: #eff6ff;
-    border-color: #2563eb;
-}
-
-.quick-select-btn.select-none {
-    border-color: #ef4444;
+.quick-select-btn.select-none:hover {
+    background: #fef2f2;
+    border-color: #f87171;
     color: #dc2626;
 }
 
-.quick-select-btn.select-none:hover {
-    background: #fef2f2;
-    border-color: #dc2626;
-}
-
 .quick-select-btn .btn-icon {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
+    opacity: 0.8;
 }
 
 .image-config {
@@ -1216,6 +1248,28 @@ h2 {
     border-color: var(--border-color);
 }
 
+[data-theme="dark"] .quick-selection-controls {
+    background: transparent;
+    border: none;
+}
+
+[data-theme="dark"] .quick-selection-content {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: #374151;
+}
+
+[data-theme="dark"] .quick-selection-content:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .quick-selection-icon {
+    color: #818cf8;
+}
+
+[data-theme="dark"] .quick-selection-label {
+    color: #e5e7eb;
+}
+
 [data-theme="dark"] .quick-select-btn {
     background: #374151;
     color: #e5e7eb;
@@ -1227,24 +1281,16 @@ h2 {
     border-color: #6b7280;
 }
 
-[data-theme="dark"] .quick-select-btn.select-all {
-    border-color: #60a5fa;
-    color: #93c5fd;
-}
-
 [data-theme="dark"] .quick-select-btn.select-all:hover {
     background: #1e3a8a;
     border-color: #3b82f6;
-}
-
-[data-theme="dark"] .quick-select-btn.select-none {
-    border-color: #f87171;
-    color: #fca5a5;
+    color: #93c5fd;
 }
 
 [data-theme="dark"] .quick-select-btn.select-none:hover {
     background: #7f1d1d;
     border-color: #ef4444;
+    color: #fca5a5;
 }
 
 [data-theme="dark"] .layout-stats {

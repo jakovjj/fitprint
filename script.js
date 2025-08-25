@@ -2843,16 +2843,9 @@ class FitPrint {
                     if (img.rotated) displayText += 'R';
                 } else if (scaledWidth < 80 || scaledHeight < 30) {
                     // Small image - show shortened filename
-                    const maxLength = Math.floor(scaledWidth / 8); // More conservative: 8px per character
-                    if (fullText.length > maxLength && maxLength > 3) {
-                        displayText = img.name.substring(0, Math.max(3, maxLength - 4)) + '...';
-                        if (img.rotated) displayText += ' (R)';
-                    }
-                } else {
-                    // Regular size - still apply conservative text limiting for very long names
-                    const maxLength = Math.floor(scaledWidth / 6); // Conservative estimation
-                    if (fullText.length > maxLength && maxLength > 5) {
-                        displayText = img.name.substring(0, Math.max(5, maxLength - 4)) + '...';
+                    const maxLength = Math.floor(scaledWidth / 7); // Roughly 7px per character
+                    if (fullText.length > maxLength) {
+                        displayText = img.name.substring(0, Math.max(3, maxLength - 3)) + '...';
                         if (img.rotated) displayText += ' (R)';
                     }
                 }
