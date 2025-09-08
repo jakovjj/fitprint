@@ -2,6 +2,10 @@ class FitPrint {
     constructor() {
         this.images = [];
         this.layout = [];
+        this.selectedImages = new Set();
+        this.lastSelectedId = null;
+        this.isRatioLocked = true;
+        this.bulkAspectRatio = null;
         this.initializeEventListeners();
         this.initializeTheme();
     }
@@ -17,12 +21,74 @@ class FitPrint {
         const paperWidth = document.getElementById('paperWidth');
         const paperHeight = document.getElementById('paperHeight');
         const outerMargin = document.getElementById('outerMargin');
+        
+        // Bulk edit controls
+        const selectAllBtn = document.getElementById('selectAll');
+        const selectNoneBtn = document.getElementById('selectNone');
+        const removeSelectedBtn = document.getElementById('removeSelected');
+        const applyBulkChangesBtn = document.getElementById('applyBulkChanges');
+        const lockRatioBtn = document.getElementById('lockRatio');
+        
+        // Quick selection controls
+        const quickSelectAllBtn = document.getElementById('quickSelectAll');
+        const quickSelectNoneBtn = document.getElementById('quickSelectNone');
+        
+        // Bulk edit inputs
+        const bulkWidth = document.getElementById('bulkWidth');
+        const bulkHeight = document.getElementById('bulkHeight');
+        const bulkCopies = document.getElementById('bulkCopies');
 
         imageInput.addEventListener('change', (e) => this.handleImageUpload(e));
         generateBtn.addEventListener('click', () => this.generateLayout());
         exportBtn.addEventListener('click', () => this.exportToPDF());
         themeToggle.addEventListener('click', () => this.toggleTheme());
         paperSize.addEventListener('change', (e) => this.handlePaperSizeChange(e));
+        
+        // Bulk edit event listeners
+        if (selectAllBtn) selectAllBtn.addEventListener('click', () => this.selectAllImages());
+        if (selectNoneBtn) selectNoneBtn.addEventListener('click', () => this.selectNoneImages());
+        if (removeSelectedBtn) removeSelectedBtn.addEventListener('click', () => this.removeSelectedImages());
+        if (applyBulkChangesBtn) applyBulkChangesBtn.addEventListener('click', () => this.applyBulkChanges());
+        if (lockRatioBtn) lockRatioBtn.addEventListener('click', () => this.toggleRatioLock());
+        
+        // Quick selection event listeners
+        if (quickSelectAllBtn) quickSelectAllBtn.addEventListener('click', () => this.selectAllImages());
+        if (quickSelectNoneBtn) quickSelectNoneBtn.addEventListener('click', () => this.selectNoneImages());
+        
+        // Bulk input listeners for real-time ratio locking
+        if (bulkWidth) bulkWidth.addEventListener('input', (e) => this.handleBulkWidthChange(e));
+        if (bulkHeight) bulkHeight.addEventListener('input', (e) => this.handleBulkHeightChange(e));
+        
+        // Navigation event listeners
+        const navToggle = document.getElementById('navToggle');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const navLinks = document.querySelectorAll('.nav-link');
+        
+        if (navToggle) navToggle.addEventListener('click', () => this.toggleSidebar());
+        if (sidebarOverlay) sidebarOverlay.addEventListener('click', () => this.closeSidebar());
+        
+        // Navigation link event listeners
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const sectionId = link.getAttribute('data-section');
+                this.navigateToSection(sectionId);
+                this.closeSidebar(); // Close sidebar on mobile after navigation
+            });
+        });
+        
+        // Drag and drop functionality
+        const fileUpload = document.querySelector('.file-upload');
+        if (fileUpload) {
+            fileUpload.addEventListener('dragover', (e) => this.handleDragOver(e));
+            fileUpload.addEventListener('drop', (e) => this.handleDrop(e));
+            fileUpload.addEventListener('dragenter', (e) => this.handleDragEnter(e));
+            fileUpload.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        }
+        
+        // Clipboard paste functionality
+        document.addEventListener('paste', (e) => this.handlePaste(e));
         
         // Add real-time validation when paper settings change
         paperWidth.addEventListener('input', () => {
@@ -117,41 +183,7 @@ class FitPrint {
 
     handleImageUpload(event) {
         const files = Array.from(event.target.files);
-        const imagesList = document.getElementById('imagesList');
-
-        files.forEach((file, index) => {
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    // Create an image element to get original dimensions
-                    const img = new Image();
-                    img.onload = () => {
-                        // Calculate aspect ratio and set default size
-                        const aspectRatio = img.width / img.height;
-                        const defaultWidth = 50; // default width in mm
-                        const defaultHeight = defaultWidth / aspectRatio;
-                        
-                        const imageData = {
-                            id: Date.now() + index,
-                            file: file,
-                            dataUrl: e.target.result,
-                            width: defaultWidth,
-                            height: defaultHeight,
-                            copies: 1,
-                            name: file.name,
-                            originalWidth: img.width,
-                            originalHeight: img.height,
-                            aspectRatio: aspectRatio
-                        };
-
-                        this.images.push(imageData);
-                        this.renderImageConfig(imageData);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        this.processFiles(files);
     }
 
     renderImageConfig(imageData) {
@@ -160,12 +192,17 @@ class FitPrint {
         config.className = 'image-config';
         config.dataset.id = imageData.id;
         config.innerHTML = `
-            <img src="${imageData.dataUrl}" alt="${imageData.name}">
+            <input type="checkbox" class="select-checkbox" id="select-${imageData.id}" 
+                   onclick="fitPrint.handleCheckboxClick(event, ${imageData.id})">
+            <img src="${imageData.dataUrl}" alt="${imageData.name}" 
+                 onclick="fitPrint.showImageModal('${imageData.dataUrl}', '${imageData.name}', '${imageData.originalWidth}x${imageData.originalHeight}')">
             <div class="config-inputs">
-                <div>
-                    <label>Width (mm):</label>
-                    <input type="number" value="${imageData.width.toFixed(1)}" min="1" step="0.1" 
-                           onchange="fitPrint.updateImageSize(${imageData.id}, 'width', this.value)">
+                <div class="input-with-lock">
+                    <div style="width: 100%;">
+                        <label>Width (mm):</label>
+                        <input type="number" value="${imageData.width.toFixed(1)}" min="1" step="0.1" 
+                               onchange="fitPrint.updateImageSize(${imageData.id}, 'width', this.value)">
+                    </div>
                 </div>
                 <div>
                     <label>Height (mm):</label>
@@ -181,6 +218,28 @@ class FitPrint {
             <button class="remove-btn" onclick="fitPrint.removeImage(${imageData.id})">Remove</button>
         `;
         list.appendChild(config);
+        
+        // Show quick selection controls and update selection count
+        this.updateQuickSelectionControls();
+        this.updateSelectionCount();
+    }
+
+    removeImage(id) {
+        // Remove from images array
+        this.images = this.images.filter(img => img.id !== id);
+        
+        // Remove from selected images
+        this.selectedImages.delete(id);
+        
+        // Remove from DOM
+        const config = document.querySelector(`[data-id="${id}"]`);
+        if (config) {
+            config.remove();
+        }
+        
+        // Update UI
+        this.updateQuickSelectionControls();
+        this.updateSelectionCount();
     }
 
     updateImageSize(id, property, value) {
@@ -245,6 +304,432 @@ class FitPrint {
                 config.classList.remove('oversized');
             }
         }
+    }
+
+    // Selection and Bulk Edit Methods
+    handleCheckboxClick(event, id) {
+        const checkbox = event.target;
+        const isSelected = checkbox.checked;
+        
+        if (event.shiftKey && this.lastSelectedId !== null) {
+            // Shift+click: select range
+            this.selectRange(this.lastSelectedId, id, isSelected);
+        } else if (event.ctrlKey || event.metaKey) {
+            // Ctrl+click: toggle individual selection
+            this.toggleImageSelection(id, isSelected);
+        } else {
+            // Normal click: just toggle this item
+            this.toggleImageSelection(id, isSelected);
+        }
+        
+        this.lastSelectedId = id;
+    }
+
+    selectRange(startId, endId, select = true) {
+        const imageIds = this.images.map(img => img.id);
+        const startIndex = imageIds.indexOf(startId);
+        const endIndex = imageIds.indexOf(endId);
+        
+        if (startIndex === -1 || endIndex === -1) return;
+        
+        const minIndex = Math.min(startIndex, endIndex);
+        const maxIndex = Math.max(startIndex, endIndex);
+        
+        for (let i = minIndex; i <= maxIndex; i++) {
+            const imageId = imageIds[i];
+            const checkbox = document.getElementById(`select-${imageId}`);
+            const config = document.querySelector(`[data-id="${imageId}"]`);
+            
+            if (select) {
+                this.selectedImages.add(imageId);
+                if (checkbox) checkbox.checked = true;
+                if (config) config.classList.add('selected');
+            } else {
+                this.selectedImages.delete(imageId);
+                if (checkbox) checkbox.checked = false;
+                if (config) config.classList.remove('selected');
+            }
+        }
+        
+        this.updateSelectionCount();
+    }
+
+    toggleImageSelection(id, isSelected) {
+        const config = document.querySelector(`[data-id="${id}"]`);
+        
+        if (isSelected) {
+            this.selectedImages.add(id);
+            config.classList.add('selected');
+        } else {
+            this.selectedImages.delete(id);
+            config.classList.remove('selected');
+        }
+        
+        this.updateSelectionCount();
+    }
+
+    selectAllImages() {
+        this.selectedImages.clear();
+        
+        this.images.forEach(img => {
+            this.selectedImages.add(img.id);
+            const checkbox = document.getElementById(`select-${img.id}`);
+            const config = document.querySelector(`[data-id="${img.id}"]`);
+            
+            if (checkbox) checkbox.checked = true;
+            if (config) config.classList.add('selected');
+        });
+        
+        this.updateSelectionCount();
+    }
+
+    selectNoneImages() {
+        this.selectedImages.clear();
+        
+        this.images.forEach(img => {
+            const checkbox = document.getElementById(`select-${img.id}`);
+            const config = document.querySelector(`[data-id="${img.id}"]`);
+            
+            if (checkbox) checkbox.checked = false;
+            if (config) config.classList.remove('selected');
+        });
+        
+        this.updateSelectionCount();
+    }
+
+    removeSelectedImages() {
+        if (this.selectedImages.size === 0) {
+            alert('No images selected for removal.');
+            return;
+        }
+
+        if (confirm(`Remove ${this.selectedImages.size} selected image(s)?`)) {
+            const idsToRemove = Array.from(this.selectedImages);
+            idsToRemove.forEach(id => this.removeImage(id));
+        }
+    }
+
+    updateSelectionCount() {
+        const selectionCount = document.getElementById('selectionCount');
+        if (selectionCount) {
+            selectionCount.textContent = `${this.selectedImages.size} image(s) selected`;
+        }
+    }
+
+    updateQuickSelectionControls() {
+        const quickControls = document.getElementById('quickSelectionControls');
+        if (quickControls) {
+            if (this.images.length > 0) {
+                quickControls.classList.remove('hidden');
+            } else {
+                quickControls.classList.add('hidden');
+            }
+        }
+    }
+
+    toggleBulkEdit() {
+        const bulkControls = document.getElementById('bulkControls');
+        const toggleIcon = document.getElementById('bulkToggleIcon');
+        
+        if (bulkControls.classList.contains('collapsed')) {
+            bulkControls.classList.remove('collapsed');
+            toggleIcon.classList.remove('collapsed');
+        } else {
+            bulkControls.classList.add('collapsed');
+            toggleIcon.classList.add('collapsed');
+        }
+    }
+
+    toggleRatioLock() {
+        this.isRatioLocked = !this.isRatioLocked;
+        const lockBtn = document.getElementById('lockRatio');
+        
+        if (this.isRatioLocked) {
+            lockBtn.classList.add('active');
+            lockBtn.textContent = '🔒';
+            lockBtn.title = 'Unlock aspect ratio';
+        } else {
+            lockBtn.classList.remove('active');
+            lockBtn.textContent = '🔓';
+            lockBtn.title = 'Lock aspect ratio';
+        }
+    }
+
+    handleBulkWidthChange(event) {
+        if (!this.isRatioLocked) return;
+        
+        const width = parseFloat(event.target.value);
+        if (isNaN(width) || width <= 0) return;
+        
+        // Use average aspect ratio of selected images or a default ratio
+        let aspectRatio = this.getAverageSelectedAspectRatio();
+        if (!aspectRatio) aspectRatio = 1.5; // Default aspect ratio
+        
+        const height = width / aspectRatio;
+        document.getElementById('bulkHeight').value = height.toFixed(1);
+    }
+
+    handleBulkHeightChange(event) {
+        if (!this.isRatioLocked) return;
+        
+        const height = parseFloat(event.target.value);
+        if (isNaN(height) || height <= 0) return;
+        
+        // Use average aspect ratio of selected images or a default ratio
+        let aspectRatio = this.getAverageSelectedAspectRatio();
+        if (!aspectRatio) aspectRatio = 1.5; // Default aspect ratio
+        
+        const width = height * aspectRatio;
+        document.getElementById('bulkWidth').value = width.toFixed(1);
+    }
+
+    getAverageSelectedAspectRatio() {
+        const selectedImages = this.images.filter(img => this.selectedImages.has(img.id));
+        if (selectedImages.length === 0) return null;
+        
+        const totalAspectRatio = selectedImages.reduce((sum, img) => sum + img.aspectRatio, 0);
+        return totalAspectRatio / selectedImages.length;
+    }
+
+    applyBulkChanges() {
+        console.log('Apply bulk changes called');
+        console.log('Selected images:', this.selectedImages);
+        
+        if (this.selectedImages.size === 0) {
+            alert('No images selected for bulk changes.');
+            return;
+        }
+
+        const bulkWidth = document.getElementById('bulkWidth').value;
+        const bulkHeight = document.getElementById('bulkHeight').value;
+        const bulkCopies = document.getElementById('bulkCopies').value;
+
+        console.log('Bulk values:', { bulkWidth, bulkHeight, bulkCopies });
+
+        const selectedImageData = this.images.filter(img => this.selectedImages.has(img.id));
+        console.log('Selected image data:', selectedImageData.length, 'images');
+        
+        selectedImageData.forEach((img, index) => {
+            console.log(`Processing image ${index + 1}:`, img.name);
+            
+            const oldValues = { width: img.width, height: img.height, copies: img.copies };
+            
+            if (bulkWidth) {
+                img.width = parseFloat(bulkWidth);
+                if (this.isRatioLocked) {
+                    // Use the original image aspect ratio, not bulk aspect ratio
+                    img.height = img.width / img.aspectRatio;
+                }
+            }
+            
+            if (bulkHeight) {
+                if (this.isRatioLocked) {
+                    // If ratio locked and height is provided, adjust width to maintain ratio
+                    img.height = parseFloat(bulkHeight);
+                    img.width = img.height * img.aspectRatio;
+                } else {
+                    // If ratio not locked, just set height
+                    img.height = parseFloat(bulkHeight);
+                }
+            }
+            
+            if (bulkCopies) {
+                img.copies = parseInt(bulkCopies);
+            }
+
+            console.log(`Image ${img.name} changed from:`, oldValues, 'to:', 
+                       { width: img.width, height: img.height, copies: img.copies });
+
+            // Update the individual controls
+            this.updateImageConfigDisplay(img);
+            this.validateImageInRealTime(img);
+        });
+
+        // Clear bulk inputs after successful application
+        document.getElementById('bulkWidth').value = '';
+        document.getElementById('bulkHeight').value = '';
+        document.getElementById('bulkCopies').value = '';
+        
+        // Show success message
+        alert(`Applied bulk changes to ${selectedImageData.length} image(s).`);
+    }
+
+    updateImageConfigDisplay(imageData) {
+        const config = document.querySelector(`[data-id="${imageData.id}"]`);
+        if (!config) return;
+
+        const widthInput = config.querySelector('input[onchange*="width"]');
+        const heightInput = config.querySelector('input[onchange*="height"]');
+        const copiesInput = config.querySelector('input[onchange*="copies"]');
+
+        if (widthInput) widthInput.value = imageData.width.toFixed(1);
+        if (heightInput) heightInput.value = imageData.height.toFixed(1);
+        if (copiesInput) copiesInput.value = imageData.copies;
+    }
+
+    showImageModal(dataUrl, name, dimensions) {
+        const modal = document.getElementById('imageModal');
+        const modalImage = document.getElementById('modalImage');
+        const modalImageName = document.getElementById('modalImageName');
+        const modalImageSize = document.getElementById('modalImageSize');
+        
+        modalImage.src = dataUrl;
+        modalImageName.textContent = name;
+        modalImageSize.textContent = dimensions;
+        
+        modal.classList.remove('hidden');
+        
+        // Close modal on background click or ESC key
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            document.removeEventListener('keydown', handleKeydown);
+        };
+        
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') closeModal();
+        };
+        
+        modal.querySelector('.modal-backdrop').onclick = closeModal;
+        modal.querySelector('.modal-close').onclick = closeModal;
+        document.addEventListener('keydown', handleKeydown);
+    }
+
+    // Navigation Methods
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        
+        if (sidebar.classList.contains('open')) {
+            this.closeSidebar();
+        } else {
+            this.openSidebar();
+        }
+    }
+
+    openSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        
+        sidebar.classList.add('open');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+
+    navigateToSection(sectionId) {
+        // Remove active class from all nav links
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+        
+        // Add active class to clicked link
+        const activeLink = document.querySelector(`[data-section="${sectionId}"]`);
+        if (activeLink) {
+            activeLink.classList.add('active');
+        }
+        
+        // Scroll to section
+        const section = document.getElementById(sectionId.replace('-section', ''));
+        if (section) {
+            section.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    }
+
+    // Drag and Drop Methods
+    handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    handleDragEnter(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.add('drag-over');
+    }
+
+    handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+    }
+
+    handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.remove('drag-over');
+        
+        const files = Array.from(e.dataTransfer.files);
+        this.processFiles(files);
+    }
+
+    // Clipboard Paste Method
+    handlePaste(e) {
+        const items = Array.from(e.clipboardData.items);
+        const imageItems = items.filter(item => item.type.startsWith('image/'));
+        
+        if (imageItems.length > 0) {
+            e.preventDefault();
+            imageItems.forEach(item => {
+                const file = item.getAsFile();
+                if (file) {
+                    this.processFiles([file]);
+                }
+            });
+        }
+    }
+
+    processFiles(files) {
+        const imageFiles = files.filter(file => file.type.startsWith('image/'));
+        
+        if (imageFiles.length === 0) {
+            alert('Please select image files only.');
+            return;
+        }
+
+        imageFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Create an image element to get original dimensions
+                const img = new Image();
+                img.onload = () => {
+                    // Calculate aspect ratio and set default size
+                    const aspectRatio = img.width / img.height;
+                    const defaultWidth = 50; // default width in mm
+                    const defaultHeight = defaultWidth / aspectRatio;
+                    
+                    const imageData = {
+                        id: Date.now() + index + Math.random() * 1000,
+                        file: file,
+                        dataUrl: e.target.result,
+                        width: defaultWidth,
+                        height: defaultHeight,
+                        copies: 1,
+                        name: file.name,
+                        originalWidth: img.width,
+                        originalHeight: img.height,
+                        aspectRatio: aspectRatio
+                    };
+
+                    this.images.push(imageData);
+                    this.renderImageConfig(imageData);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
     generateLayout() {
